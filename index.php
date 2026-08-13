@@ -24,12 +24,12 @@
      CSS e JS por 4 horas (Cache-Control: max-age=14400): sem trocar a URL,
      uma publicação nova serve HTML atual com script velho. Suba este valor
      a cada deploy que mexa em arquivos de assets/. -->
-<link rel="stylesheet" href="assets/css/style.css?v=20260731b">
-<link rel="stylesheet" href="assets/css/crm.css?v=20260731b">
+<link rel="stylesheet" href="assets/css/style.css?v=20260813a">
+<link rel="stylesheet" href="assets/css/crm.css?v=20260813a">
 
 <!-- Trava de acesso: precisa rodar antes de qualquer renderização.
      Para desativar o login, basta remover estas duas tags. -->
-<script src="assets/js/auth.js?v=20260731b"></script>
+<script src="assets/js/auth.js?v=20260813a"></script>
 <script>exigirAutenticacao();</script>
 </head>
 
@@ -126,8 +126,8 @@
             <div class="cabecalhoCrud">
 
                 <div>
-                    <h2>Clientes com oferta</h2>
-                    <p>Vindos da API: só quem tem oferta disponível e celular cadastrado.</p>
+                    <h2>Fila de atendimento</h2>
+                    <p>Clientes da API com oferta disponível, mais os leads importados por planilha — estes entram mesmo antes de ter oferta. Todos com celular cadastrado.</p>
                 </div>
 
                 <div class="acoesCrud">
@@ -169,6 +169,13 @@
                 <button type="button" id="filtroNaoContatado" class="chipFiltro chipContato" onclick="alternarNaoContatados()">
                     <i class="bi bi-person-dash"></i>
                     Não contatados
+                </button>
+
+                <!-- Leads da última importação. Fica oculto até existir uma;
+                     o rótulo e a contagem vêm de marcarChipImportados(). -->
+                <button type="button" id="filtroImportados" class="chipFiltro chipImportados" style="display:none" onclick="alternarImportados()">
+                    <i class="bi bi-box-arrow-in-down"></i>
+                    <span class="rotuloChip">Importados agora</span>
                 </button>
 
                 <!-- Mesmos dados, duas apresentações. -->
@@ -540,16 +547,16 @@ JOSE DA SILVA;11912345678;50181123878</pre>
 <script src="https://cdn.datatables.net/responsive/3.0.3/js/dataTables.responsive.min.js"></script>
 <script src="https://cdn.datatables.net/responsive/3.0.3/js/responsive.bootstrap5.min.js"></script>
 
-<script src="assets/js/toast.js?v=20260731b"></script>
-<script src="assets/js/api.js?v=20260731b"></script>
-<script src="assets/js/csv.js?v=20260731b"></script>
-<script src="assets/js/mensagens.js?v=20260731b"></script>
-<script src="assets/js/app.js?v=20260731b"></script>
-<script src="assets/js/clientes-crud.js?v=20260731b"></script>
-<script src="assets/js/importacoes.js?v=20260731b"></script>
-<script src="assets/js/simulacao.js?v=20260731b"></script>
-<script src="assets/js/contrato.js?v=20260731b"></script>
-<script src="assets/js/painel.js?v=20260731b"></script>
+<script src="assets/js/toast.js?v=20260813a"></script>
+<script src="assets/js/api.js?v=20260813a"></script>
+<script src="assets/js/csv.js?v=20260813a"></script>
+<script src="assets/js/mensagens.js?v=20260813a"></script>
+<script src="assets/js/app.js?v=20260813a"></script>
+<script src="assets/js/clientes-crud.js?v=20260813a"></script>
+<script src="assets/js/importacoes.js?v=20260813a"></script>
+<script src="assets/js/simulacao.js?v=20260813a"></script>
+<script src="assets/js/contrato.js?v=20260813a"></script>
+<script src="assets/js/painel.js?v=20260813a"></script>
 
 </body>
 </html>

@@ -62,6 +62,8 @@ Each table is built while hidden, so its section must call `columns.adjust().res
 
 Three visible columns — **Nome**, **Contato** and **Data de criação** (`createdAtUtc`, newest first; it is column index **3**, since 0 is the Responsive control — the `order` config has to move whenever a visible column is inserted).
 
+**Leads of the last import** are marked from `localStorage.ultima_importacao` (written by `importacoes.js`). Like `contato_`, that key changes while the list is on screen, so `atualizarImportadosPainel()` copies it onto the row objects before every draw. Marked rows get a green **novo** badge next to the name, with the creation date in its `title`; the **Importados agora (N)** chip is a *third* independent dimension, combining with the date and contact filters rather than replacing them. The chip stays hidden until an import has been recorded — and hiding it also clears the filter, since a filter with no visible control would empty the list with nothing on screen explaining why. `sincronizarPainel()` clears it for the same reason it resets the date filter.
+
 **Contato** marks who has already been approached, read from `contato_inicial_<cpf>`. That key is local and changes while the list is on screen, so `atualizarContatosPainel()` copies it onto the row objects before every draw instead of the mapper reading it once at load. The **Não contatados** chip filters on it and is a *second, independent dimension*: it combines with the date filter rather than replacing it. The WhatsApp button goes through `contatarPainel()`, which calls `abrirWhatsapp()` and then redraws — with the filter on, the row leaves the list entirely (so `desenharPainel()`), with it off only the cell changes (so `rows().invalidate()`, which keeps the page and any open child row). Everything else lives in the Responsive child row: celular, CPF, offer count, and the **WhatsApp** / **Montar proposta** buttons. Those columns carry `className:"none"`, which keeps them out of the grid at *every* width — the child row is not a small-screen fallback here, it is where the detail is meant to be. The ⊕ toggle is column 0 (`className:"dtr-control"` + `responsive.details.type:"column"`).
 
 **Two views over one table.** The Tabela/Cards toggle does not build a second data set: `renderizarCardsPainel()` reads `rows({page:"current", search:"applied", order:"applied"})`, so the cards are the DataTable's current page rendered differently and cannot drift from it. The `#cardsPainel` container is moved *into* the DataTables layout next to the `<table>` on init, and `.emCards` hides `table.dataTable` only — the wrapper stays, so the search box, page-length selector and paginator keep working in card mode. Both views share `valorComCopia()` and `botoesAcao()` for the same reason. Cards are re-rendered from the `draw` event and skipped entirely while the table view is active.
@@ -70,7 +72,14 @@ The copy buttons next to celular and CPF call `copiarTexto()` from `app.js`, whi
 
 **The Painel does not carry status.** It was there briefly and was taken out: no chips, and `mapearClientePainel` no longer reads `status_`/`data_`/`hora_`. Nothing in the app writes those keys now except a local spreadsheet import, so the read-only Status column in **Clientes** shows only history from before this change.
 
-Two entry rules, both required: **`ofertas > 0`** and a dialable **celular** (≥ 10 digits). `quantidadeOfertas()` accepts a count or an array under several spellings (`ofertas`, `qtdOfertas`, `totalOfertas`, …) because the field name was never confirmed in the `/clientes` payload — collapse it once the real name is known. A record with none of them counts as zero offers and stays out; there is deliberately **no fallback to `margemDisponivel`**, which would silently widen the list beyond what was asked for.
+**The entry rule has two paths, and only one of them asks for an offer.** A dialable **celular** (≥ 10 digits) and a CPF are required of everyone — without a number there is no WhatsApp and no Telegram, which is all the card offers, and without a CPF there is no local key for the operator's history. Beyond that:
+
+- a client **from the API** still needs **`ofertas > 0`**, exactly as before;
+- a **lead imported from a spreadsheet** enters with zero offers. It is born with none — the bank queries have not run yet — and that queue is precisely what the operator has to work. `clienteDoPainel()` recognises it through `ehLeadImportado()` (`importacoes.js`), which reads the accumulated `leads_importados` record.
+
+Keeping the offer rule for the rest is what stops the Painel from becoming the whole client list. The `typeof ehLeadImportado === "function"` guard means a missing `importacoes.js` degrades to the old offer-only rule instead of throwing inside the filter and emptying the Painel.
+
+`quantidadeOfertas()` accepts a count or an array under several spellings (`ofertas`, `qtdOfertas`, `totalOfertas`, …) because the field name was never confirmed in the `/clientes` payload — collapse it once the real name is known. A record with none of them counts as zero offers; there is deliberately **no fallback to `margemDisponivel`**, which would silently widen the list beyond what was asked for. Rows at zero offers render `sem oferta ainda` in a neutral `seloOfertas.semOferta` rather than `0 ofertas`, which reads as a defect.
 
 The date filter (Hoje / Ontem / a specific date) compares `chaveDoDia()` strings, not `Date` objects: `createdAtUtc` arrives in UTC and `<input type="date">` yields a local day, so both are reduced to a local `AAAA-MM-DD` key first. Parsing the picker value with `new Date("2026-07-30")` would read it as UTC and land on the previous day for anyone west of Greenwich — `formatarDiaBR()` splits the string instead. Filtering is done in plain JS and the rows are re-added; no `DataTable.ext.search` hook, which is global and would also reach the other two tables. A record with no `createdAtUtc` matches no day and is only visible under **Todos**.
 
@@ -106,7 +115,22 @@ Currency and dates sort wrong if `render` returns formatted text for every type:
 
 `POST /importacoes-clientes` takes `multipart/form-data` with the file under the field name `arquivo`. **Never set `Content-Type` for it.** The `curl` recipe spells the header out because curl computes the boundary itself; in the browser, setting it by hand produces a body with no boundary and the server rejects the upload. `requisitarApi` takes `opcoes.formulario` (a `FormData`) precisely so it can skip that header — `opcoes.corpo` is the JSON path.
 
-A successful upload reloads both the import list and the client list, since the server creates clients as a side effect.
+A successful upload reloads the import list and the Painel, since the server creates clients as a side effect. The Clientes table is only reloaded when the operator had already opened it (`tabelaIniciada`) — that screen loads nothing on entry by design, so refreshing it otherwise is a full list read thrown away.
+
+**Which leads a given upload created is worked out client-side.** The POST returns nothing identifying them and the listing route may not even exist, so `enviarImportacao()` takes a snapshot of the CPFs already on the server *before* the upload and diffs it against the list read after. Comparing CPFs is exact and does not depend on the server's clock agreeing with the browser's; the timestamp path (`novosPorDataDeCriacao`, with five minutes of slack) is the fallback for when that first read fails, and the summary says so when it was used. Records with no CPF are excluded from both — without that, the same CPF-less record counts as new on every upload.
+
+**Two keys are written, and they have different lifetimes.** Confusing them breaks one feature or the other:
+
+- `ultima_importacao` — `{quando, arquivo, porData, ids, total, noPainel, linhas}`, **replaced** by every upload. It is only the last batch: the **Importados agora (N)** chip, the **novo** badge, and the summary text.
+- `leads_importados` — `{"<cpf>": "<ISO>"}`, **accumulated**, never replaced. This is the one the Painel's entry rule consults, so replacing it would drop the previous batch out of the Painel on the next upload — and that batch is work the operator has not finished. `registrarLeadsImportados()` merges into it before any count is taken, since `quantosEntramNoPainel()` runs the real `clienteDoPainel()` and would answer for the old rule otherwise.
+
+A lead that arrives without a phone still goes into `leads_importados`; it just doesn't pass the entry rule. If someone later fills its `celular` on the server, it shows up in the Painel on the next load, which is the wanted behaviour.
+
+`textoUltimaImportacao()` renders the summary for the Importações banner and the toast: leads created, how many the Painel accepted, and how many were left out for having no phone. Nothing is left out for lack of an offer any more — that was the whole point of the split rule — so the copy must not claim otherwise.
+
+Neither key existed before this feature, so leads imported earlier are not in `leads_importados` and do not get the exemption. Only a fresh upload records them; there is no backfill, because nothing in the payload says which clients came from a spreadsheet.
+
+After the upload, `irParaLeadsImportados()` (in `painel.js`) opens the Painel filtered to that lot. It sets the date filter to **Todos** on purpose: the import marking is already the exact cut, and a day that disagrees — a file processed past midnight, a server clock ahead — would empty the screen at the one moment it should be showing the result. The **Data de criação** column still carries each lead's day.
 
 Only the POST contract is confirmed. Listing and delete are assumed to follow REST convention on the same path; `carregarImportacoes()` treats 404/405 as "this API has no listing" and says so instead of showing an error. The record mapper accepts several field spellings for the same reason — collapse it once the shape is known.
 
@@ -149,6 +173,8 @@ The client `id` is the CPF stripped to digits (`somenteNumeros`), and it is the 
 | `classificacao_<id>`, `classificacao_texto_<id>` | `gerarProposta` | outcome of the last Telegram parse |
 | `mensagem_inicial_<id>` | `abrirWhatsapp` | index of the opening message this client got |
 | `rodizio_mensagem_inicial` | `abrirWhatsapp` | next position in the opening-message rotation (not per-CPF) |
+
+Two keys are **not** per-CPF and are written by the upload flow: `ultima_importacao` (last batch) and `leads_importados` (every CPF ever imported, with its date — this one decides who gets into the Painel without an offer). Both are described under *Uploads*. `limparSessao()` must not wipe either — they are operator work, not session state.
 
 ### Opening messages (`assets/js/mensagens.js`)
 

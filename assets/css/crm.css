@@ -653,6 +653,44 @@ body{
     color:#fff;
 }
 
+/* Recorte do último lote importado — mesma natureza do chip de contato:
+   vale junto com o filtro de data. Fica oculto até existir uma importação. */
+.chipImportados{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    background:#fff;
+    border:1px dashed #9ad3b0;
+    color:#136b38;
+}
+
+.chipImportados.ativo{
+    background:#136b38;
+    border-color:#136b38;
+    color:#fff;
+}
+
+
+/* ===============================
+   MARCA DE LEAD RECÉM-IMPORTADO
+   Selo ao lado do nome, na tabela e no card.
+================================ */
+
+.seloImportado{
+    display:inline-block;
+    vertical-align:middle;
+    margin-left:6px;
+    padding:2px 8px;
+    border-radius:20px;
+    background:#136b38;
+    color:#fff;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:.5px;
+    text-transform:uppercase;
+    white-space:nowrap;
+}
+
 
 /* ===============================
    MARCA DE PRIMEIRO CONTATO
@@ -1215,6 +1253,13 @@ body{
     font-size:12px;
     font-weight:700;
     white-space:nowrap;
+}
+
+/* Lead importado aparece no Painel antes de ter oferta: o selo fica neutro
+   para não competir com quem já tem proposta para vender. */
+.seloOfertas.semOferta{
+    background:#ececef;
+    color:#666;
 }
 
 .cardPainelData{

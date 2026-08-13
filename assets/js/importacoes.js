@@ -11,6 +11,273 @@ let analiseImportacao = null;
 
 
 // ===============================
+// ÚLTIMA IMPORTAÇÃO
+// O POST não devolve quais clientes foram criados, e a listagem da rota pode
+// nem existir (404/405): quem entrou é descoberto aqui, comparando a base
+// antes e depois do envio. A comparação é por CPF de propósito — é exata e
+// não depende de o relógio do servidor bater com o do navegador.
+//
+// O resultado fica no localStorage porque quem usa é o Painel: é ele que
+// mostra o lote recém-importado, e a marca precisa sobreviver a um F5.
+// Cada envio substitui o anterior — "a última importação", não um histórico.
+//
+// São DUAS chaves, com vidas diferentes:
+//
+// - `ultima_importacao` é só o último lote: alimenta o chip "Importados agora",
+//   o selo "novo" e o resumo do envio. É substituída a cada importação.
+// - `leads_importados` acumula todo CPF que já entrou por planilha, com a data.
+//   É a que decide quem aparece no Painel sem oferta, e por isso não pode ser
+//   substituída: trocá-la faria a leva anterior desaparecer do Painel no envio
+//   seguinte, que é justamente o trabalho que o operador ainda não terminou.
+// ===============================
+
+const CHAVE_ULTIMA_IMPORTACAO = "ultima_importacao";
+const CHAVE_LEADS_IMPORTADOS = "leads_importados";
+
+// Folga do relógio para o caminho de exceção (identificação pela data de
+// criação): o carimbo é do servidor e o corte é do navegador, e os dois
+// raramente batem no segundo.
+const FOLGA_RELOGIO_MS = 5 * 60 * 1000;
+
+let ultimaImportacao = lerUltimaImportacao();
+
+// { "<cpf>": "<ISO da importação>" } — acumulado, nunca substituído.
+let leadsImportados = lerLeadsImportados();
+
+
+function lerLeadsImportados(){
+
+    try{
+
+        const bruto = localStorage.getItem(CHAVE_LEADS_IMPORTADOS);
+        const dados = bruto ? JSON.parse(bruto) : null;
+
+        return dados && typeof dados === "object" && !Array.isArray(dados) ? dados : {};
+
+    }catch(erro){
+
+        console.warn("Registro de leads importados ilegível:", erro.message);
+
+        return {};
+
+    }
+
+}
+
+
+// Chamado antes de qualquer contagem: é ele que faz o lead recém-criado passar
+// pela regra de entrada do Painel mesmo sem oferta nenhuma.
+function registrarLeadsImportados(novos, quando){
+
+    novos.forEach(registro=>{
+
+        const cpf = normalizarCpf((registro && registro.cpf) || "");
+
+        // Reimportado: vale a data mais recente, é a que explica por que ele
+        // está no Painel.
+        if(cpf) leadsImportados[cpf] = quando;
+
+    });
+
+    try{
+
+        localStorage.setItem(CHAVE_LEADS_IMPORTADOS, JSON.stringify(leadsImportados));
+
+    }catch(erro){
+
+        // Cota estourada: a marca vale nesta sessão e se perde no F5.
+        console.warn("Não foi possível guardar os leads importados:", erro.message);
+
+    }
+
+}
+
+
+// Usado pela regra de entrada do Painel (painel.js). O CPF já vem normalizado
+// de lá — é a mesma chave local usada no localStorage do operador.
+function ehLeadImportado(cpf){
+
+    return !!cpf && Object.prototype.hasOwnProperty.call(leadsImportados, cpf);
+
+}
+
+
+function dataDeImportacao(cpf){
+
+    return ehLeadImportado(cpf) ? leadsImportados[cpf] : "";
+
+}
+
+
+function lerUltimaImportacao(){
+
+    try{
+
+        const bruto = localStorage.getItem(CHAVE_ULTIMA_IMPORTACAO);
+        const dados = bruto ? JSON.parse(bruto) : null;
+
+        // Sem a lista de CPFs não há o que marcar no Painel.
+        return dados && Array.isArray(dados.ids) ? dados : null;
+
+    }catch(erro){
+
+        // JSON corrompido: ficar sem a marcação é melhor que travar a tela.
+        console.warn("Resumo da última importação ilegível:", erro.message);
+
+        return null;
+
+    }
+
+}
+
+
+function gravarUltimaImportacao(dados){
+
+    ultimaImportacao = dados;
+
+    try{
+
+        localStorage.setItem(CHAVE_ULTIMA_IMPORTACAO, JSON.stringify(dados));
+
+    }catch(erro){
+
+        // Cota estourada: o Painel ainda marca o lote nesta sessão.
+        console.warn("Não foi possível guardar o resumo da importação:", erro.message);
+
+    }
+
+}
+
+
+function chavesDeClientes(registros){
+
+    const chaves = new Set();
+
+    registros.forEach(registro=>{
+
+        const cpf = normalizarCpf((registro && registro.cpf) || "");
+
+        if(cpf) chaves.add(cpf);
+
+    });
+
+    return chaves;
+
+}
+
+
+// Caminho de exceção, usado só quando a base não pôde ser lida antes do envio.
+function novosPorDataDeCriacao(registros, momento){
+
+    const corte = momento - FOLGA_RELOGIO_MS;
+
+    return registros.filter(registro=>{
+
+        if(!normalizarCpf((registro && registro.cpf) || "")) return false;
+
+        const data = new Date((registro && (registro.createdAtUtc || registro.criadoEm)) || "");
+
+        return !isNaN(data.getTime()) && data.getTime() >= corte;
+
+    });
+
+}
+
+
+// Quantos dos novos passam pela regra do Painel. Lead importado entra sem
+// oferta, então o que sobra de fora é quem veio sem celular discável — e é
+// esse número que explica a tela.
+// Só vale depois de registrarLeadsImportados(): a regra consulta o registro.
+function quantosEntramNoPainel(novos){
+
+    if(typeof mapearClientePainel !== "function") return null;
+
+    return novos.filter(registro => clienteDoPainel(mapearClientePainel(registro))).length;
+
+}
+
+
+function registrarImportacao(novos, arquivo, porData){
+
+    const quando = new Date().toISOString();
+
+    // Primeiro o acumulado, depois a contagem: é ele que faz estes leads
+    // passarem pela regra de entrada do Painel sem oferta.
+    registrarLeadsImportados(novos, quando);
+
+    gravarUltimaImportacao({
+
+        quando: quando,
+        arquivo: arquivo || "",
+
+        // Marca que a identificação foi pela data, não pela comparação de CPFs.
+        porData: !!porData,
+
+        // Chave local do Painel: o CPF já normalizado (com os zeros à esquerda).
+        ids: novos
+            .map(registro => normalizarCpf((registro && registro.cpf) || ""))
+            .filter(Boolean),
+
+        total: novos.length,
+        noPainel: quantosEntramNoPainel(novos),
+
+        // Só o CSV é lido aqui; .xlsx não é inspecionado no navegador.
+        linhas: analiseImportacao ? analiseImportacao.linhas : null
+
+    });
+
+}
+
+
+function textoUltimaImportacao(){
+
+    if(!ultimaImportacao) return "";
+
+    const quando = formatarDataHora(ultimaImportacao.quando);
+    const arquivo = ultimaImportacao.arquivo ? ultimaImportacao.arquivo + " · " : "";
+    const total = ultimaImportacao.total || 0;
+
+    if(!total){
+
+        return arquivo + "nenhum lead novo entrou na base neste envio (" + quando + "). " +
+            "Se o arquivo só trazia clientes que já existiam, é o resultado esperado.";
+
+    }
+
+    const partes = [
+        arquivo + total + (total === 1 ? " lead novo" : " leads novos") + " em " + quando
+    ];
+
+    if(ultimaImportacao.linhas){
+        partes.push("arquivo com " + ultimaImportacao.linhas + " linhas");
+    }
+
+    if(ultimaImportacao.noPainel != null){
+
+        // Lead importado entra no Painel mesmo sem oferta: quem fica de fora
+        // é só quem veio sem um celular discável.
+        const fora = total - ultimaImportacao.noPainel;
+
+        partes.push(ultimaImportacao.noPainel + " no Painel");
+
+        if(fora > 0){
+            partes.push(fora + (fora === 1
+                ? " ficou de fora por não ter celular"
+                : " ficaram de fora por não ter celular"));
+        }
+
+    }
+
+    if(ultimaImportacao.porData){
+        partes.push("identificados pela data de criação — a base anterior não pôde ser lida");
+    }
+
+    return partes.join(" · ") + ".";
+
+}
+
+
+// ===============================
 // MAPEAMENTO
 // Só o POST desta rota foi documentado; o formato do registro listado
 // ainda não. Os nomes prováveis são aceitos e o que faltar fica em branco.
@@ -225,7 +492,17 @@ async function carregarImportacoes(){
         iniciarTabelaImportacoes();
         atualizarTabelaImportacoes();
 
-        if(aviso) aviso.style.display = "none";
+        // O resumo do último envio vale mais que uma faixa vazia: é onde o
+        // operador confere quantos leads entraram e se estão no Painel.
+        if(ultimaImportacao){
+
+            mostrarAvisoImportacoes(textoUltimaImportacao(), "info");
+
+        }else if(aviso){
+
+            aviso.style.display = "none";
+
+        }
 
     }catch(erro){
 
@@ -235,6 +512,7 @@ async function carregarImportacoes(){
         if(erro.status === 404 || erro.status === 405){
 
             mostrarAvisoImportacoes(
+                (ultimaImportacao ? textoUltimaImportacao() + " " : "") +
                 "Esta API não expõe listagem de importações — o envio de arquivo continua funcionando.",
                 "info"
             );
@@ -428,12 +706,12 @@ function limparErroImportacao(){
 }
 
 
-function enviandoImportacao(ativo){
+function enviandoImportacao(ativo, texto){
 
     const botao = document.getElementById("btnEnviarImportacao");
 
     botao.disabled = ativo;
-    botao.textContent = ativo ? "Enviando..." : "Enviar";
+    botao.textContent = ativo ? (texto || "Enviando...") : "Enviar";
 
 }
 
@@ -458,11 +736,52 @@ async function enviarImportacao(){
 
     }
 
-    enviandoImportacao(true);
+    enviandoImportacao(true, "Conferindo a base...");
+
+    // Retrato da base antes do envio: o que aparecer depois e não estiver aqui
+    // foi criado por este arquivo. Falhar aqui não impede o envio — a
+    // identificação apenas cai para a data de criação.
+    let antes = null;
 
     try{
 
+        antes = chavesDeClientes(await apiListarClientes());
+
+    }catch(erro){
+
+        console.warn("Base anterior não pôde ser lida:", erro.message);
+
+    }
+
+    const momentoEnvio = Date.now();
+
+    try{
+
+        enviandoImportacao(true, "Enviando...");
+
         await apiEnviarImportacao(arquivoImportacao);
+
+        enviandoImportacao(true, "Conferindo os leads...");
+
+        // A importação cria clientes no servidor: a lista local fica velha no
+        // mesmo instante. Esta leitura serve às duas coisas — descobrir quem
+        // entrou e alimentar o Painel, que lê a mesma rota.
+        const registros = await apiListarClientes();
+
+        const novos = antes
+            ? registros.filter(registro=>{
+
+                  const cpf = normalizarCpf((registro && registro.cpf) || "");
+
+                  // Sem CPF não há chave para comparar nem para marcar depois:
+                  // sem isto, o mesmo registro sem CPF contaria como novo em
+                  // todo envio.
+                  return cpf && !antes.has(cpf);
+
+              })
+            : novosPorDataDeCriacao(registros, momentoEnvio);
+
+        registrarImportacao(novos, arquivoImportacao.name, !antes);
 
         bootstrap.Modal
             .getOrCreateInstance(document.getElementById("modalImportacao"))
@@ -470,16 +789,31 @@ async function enviarImportacao(){
 
         await carregarImportacoes();
 
-        // A importação cria clientes no servidor: a lista local fica velha
-        // no mesmo instante, então é recarregada junto — e o Painel também,
-        // que lê a mesma rota.
-        await carregarClientes();
-        await carregarPainel();
+        // A tela de Clientes não carrega nada ao entrar: só vale recarregá-la
+        // se o operador já tinha aberto a lista — senão é uma leitura completa
+        // jogada fora.
+        if(typeof tabelaIniciada !== "undefined" && tabelaIniciada){
+            await carregarClientes();
+        }
 
-        mostrarAvisoImportacoes(
-            "Arquivo enviado. A lista de clientes foi atualizada.",
-            "info"
-        );
+        // O resumo do envio fica na faixa da tela de Importações: quem escreve
+        // é carregarImportacoes(), logo acima — sobrescrevê-lo aqui apagaria
+        // um erro de listagem que o operador precisa ver.
+
+        // Reaproveita a lista já lida e leva o operador aos leads que entraram.
+        await carregarPainel(registros);
+
+        if(novos.length){
+
+            irParaLeadsImportados();
+
+            notificar(textoUltimaImportacao(), "sucesso");
+
+        }else{
+
+            notificar(textoUltimaImportacao(), "info");
+
+        }
 
     }catch(erro){
 

@@ -654,9 +654,11 @@ async function confirmarExclusaoCliente(idApi){
 function sincronizarPainel(){
 
     // Sem isto o Painel abriria no filtro "Hoje" e pareceria vazio: quem foi
-    // cadastrado em outro dia sumiria logo depois de sincronizar.
+    // cadastrado em outro dia sumiria logo depois de sincronizar. O recorte da
+    // última importação sai pelo mesmo motivo.
     filtroDataPainel = "todos";
     dataEscolhidaPainel = "";
+    somenteImportados = false;
 
     const entrada = document.getElementById("dataPainel");
 

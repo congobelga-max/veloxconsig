@@ -15,6 +15,10 @@ let filtroDataPainel = "hoje";
 // Filtro independente do de data: esconde quem já recebeu o primeiro contato.
 let somenteNaoContatados = false;
 
+// Terceira dimensão, também independente: só os leads que entraram na última
+// importação (importacoes.js grava a lista de CPFs).
+let somenteImportados = false;
+
 // AAAA-MM-DD, no formato que o <input type="date"> devolve.
 let dataEscolhidaPainel = "";
 
@@ -95,22 +99,38 @@ function mapearClientePainel(registro){
         // e muda enquanto a lista está na tela.
         contatado: false,
         contatoData: "",
-        contatoHora: ""
+        contatoHora: "",
+
+        // Preenchido por atualizarImportadosPainel(), pelo mesmo motivo: uma
+        // importação troca a lista com o Painel já montado.
+        importado: false
 
     };
 
 }
 
 
-// Regra de entrada no Painel: oferta disponível, celular discável e CPF
-// (sem CPF não há chave local para o histórico do operador).
+// Regra de entrada no Painel: celular discável, CPF (sem ele não há chave local
+// para o histórico do operador) e — para quem veio da API — oferta disponível.
+//
+// Lead importado por planilha entra sem oferta de propósito: ele nasce com zero
+// oferta porque as consultas bancárias ainda não rodaram, e é justamente a fila
+// que o operador precisa trabalhar. Quem já estava na base segue na regra
+// antiga, senão o Painel viraria a lista inteira de clientes.
+//
+// O celular continua obrigatório nos dois casos: sem número não há WhatsApp
+// nem Telegram, que é tudo o que o card oferece.
 function clienteDoPainel(cliente){
 
     const digitos = somenteNumeros(cliente.celular);
 
-    return cliente.ofertas > 0 &&
-        digitos.length >= 10 &&
-        !!cliente.id;
+    if(digitos.length < 10 || !cliente.id) return false;
+
+    if(cliente.ofertas > 0) return true;
+
+    // typeof: sem importacoes.js carregado, a regra volta a ser só a oferta em
+    // vez de derrubar o Painel inteiro.
+    return typeof ehLeadImportado === "function" && ehLeadImportado(cliente.id);
 
 }
 
@@ -195,6 +215,48 @@ function atualizarContatosPainel(){
 }
 
 
+// ===============================
+// LEADS DA ÚLTIMA IMPORTAÇÃO
+// `ultimaImportacao` (importacoes.js, carregado antes deste arquivo) guarda os
+// CPFs criados no último envio. Como o contato, a marca é relida antes de cada
+// desenho: importar com o Painel na tela troca o lote sem recarregar a página.
+// ===============================
+
+function idsDaUltimaImportacao(){
+
+    const dados = ultimaImportacao;
+
+    return new Set(dados && Array.isArray(dados.ids) ? dados.ids : []);
+
+}
+
+
+function atualizarImportadosPainel(){
+
+    const ids = idsDaUltimaImportacao();
+
+    painelClientes.forEach(cliente=>{
+
+        cliente.importado = ids.has(cliente.id);
+
+    });
+
+}
+
+
+// Selo ao lado do nome. A data de criação é o que identifica o lote — ela já
+// tem coluna própria, e aqui vai no title para o selo não competir com o nome.
+function marcaImportado(cliente){
+
+    if(!cliente.importado) return "";
+
+    return ' <span class="seloImportado" title="Importado em ' +
+        escaparHtml(formatarDataHora(cliente.criadoEm) || "data não informada") +
+        '">novo</span>';
+
+}
+
+
 function textoContatoPainel(cliente){
 
     if(!cliente.contatado) return "Não contatado";
@@ -217,6 +279,8 @@ function clientesFiltradosPainel(){
         if(alvo && diaDoCliente(cliente) !== alvo) return false;
 
         if(somenteNaoContatados && cliente.contatado) return false;
+
+        if(somenteImportados && !cliente.importado) return false;
 
         return true;
 
@@ -324,7 +388,10 @@ function iniciarTabelaPainel(){
                 title:"Nome",
                 data:"nome",
                 responsivePriority:1,
-                render: valor => escaparHtml(valor)
+                render: (valor, tipo, cliente) =>
+                    tipo === "display"
+                        ? escaparHtml(valor) + marcaImportado(cliente)
+                        : valor
             },
             {
                 title:"Contato",
@@ -399,7 +466,7 @@ function iniciarTabelaPainel(){
         order:[[3,"desc"]],
 
         language:{
-            emptyTable:"Nenhum cliente com oferta neste período.",
+            emptyTable:"Nenhum lead neste período.",
             info:"Mostrando _START_ a _END_ de _TOTAL_ clientes",
             infoEmpty:"Nenhum cliente",
             infoFiltered:"(filtrado de _MAX_ no total)",
@@ -472,16 +539,20 @@ function renderizarCardsPainel(){
 
 function cartaoPainel(cliente){
 
-    const ofertas = cliente.ofertas === 1
-        ? "1 oferta"
-        : cliente.ofertas + " ofertas";
+    // O lead importado chega aqui antes de ter oferta: dizer isso é melhor que
+    // um "0 ofertas", que se lê como defeito.
+    const ofertas = cliente.ofertas > 0
+        ? (cliente.ofertas === 1 ? "1 oferta" : cliente.ofertas + " ofertas")
+        : "sem oferta ainda";
+
+    const classeOfertas = "seloOfertas" + (cliente.ofertas > 0 ? "" : " semOferta");
 
     return `
 <article class="cardPainel">
 
     <header class="cardPainelTopo">
-        <h3>${escaparHtml(cliente.nome)}</h3>
-        <span class="seloOfertas">${escaparHtml(ofertas)}</span>
+        <h3>${escaparHtml(cliente.nome)}${marcaImportado(cliente)}</h3>
+        <span class="${classeOfertas}">${escaparHtml(ofertas)}</span>
     </header>
 
     <p class="cardPainelData">
@@ -543,6 +614,11 @@ function desenharPainel(){
     if(!tabelaPainel) return;
 
     atualizarContatosPainel();
+    atualizarImportadosPainel();
+
+    // Antes de filtrar: um envio que não trouxe ninguém esconde o chip e, com
+    // ele, desliga o recorte — que senão esvaziaria a lista sem explicação.
+    marcarChipImportados();
 
     tabelaPainel.clear();
     tabelaPainel.rows.add(clientesFiltradosPainel());
@@ -609,6 +685,43 @@ function marcarFiltroAtivo(){
 
     if(contato) contato.classList.toggle("ativo", somenteNaoContatados);
 
+    marcarChipImportados();
+
+}
+
+
+// Sem importação registrada não há lote para recortar: o chip nem aparece.
+function marcarChipImportados(){
+
+    const chip = document.getElementById("filtroImportados");
+
+    if(!chip) return;
+
+    const dados = ultimaImportacao;
+    const total = dados && Array.isArray(dados.ids) ? dados.ids.length : 0;
+
+    chip.style.display = total ? "" : "none";
+
+    if(!total){
+
+        // Um filtro ligado sobre um chip escondido esvaziaria a lista sem
+        // nada na tela explicando por quê.
+        somenteImportados = false;
+
+        return;
+
+    }
+
+    const rotulo = chip.querySelector(".rotuloChip");
+
+    if(rotulo){
+        rotulo.textContent = "Importados agora (" + total + ")";
+    }
+
+    chip.title = "Leads criados na importação de " + formatarDataHora(dados.quando);
+
+    chip.classList.toggle("ativo", somenteImportados);
+
 }
 
 
@@ -616,6 +729,41 @@ function marcarFiltroAtivo(){
 function alternarNaoContatados(){
 
     somenteNaoContatados = !somenteNaoContatados;
+
+    marcarFiltroAtivo();
+    desenharPainel();
+
+}
+
+
+function alternarImportados(){
+
+    somenteImportados = !somenteImportados;
+
+    marcarFiltroAtivo();
+    desenharPainel();
+
+}
+
+
+// Chamado logo depois de um envio: abre o Painel já recortado nos leads que
+// acabaram de entrar. O filtro de data vai para "Todos" de propósito — a marca
+// da importação é o recorte exato, e um dia divergente (arquivo processado
+// depois da virada, relógio do servidor adiantado) deixaria a tela vazia
+// justamente quando ela deveria mostrar o resultado do envio. A coluna
+// "Data de criação" continua mostrando o dia de cada lead.
+function irParaLeadsImportados(){
+
+    somenteImportados = true;
+    somenteNaoContatados = false;
+    filtroDataPainel = "todos";
+    dataEscolhidaPainel = "";
+
+    const entrada = document.getElementById("dataPainel");
+
+    if(entrada) entrada.value = "";
+
+    mostrarSecao("Painel");
 
     marcarFiltroAtivo();
     desenharPainel();
@@ -664,13 +812,18 @@ function filtrarPainelPorData(valor){
 // CARGA
 // ===============================
 
-async function carregarPainel(){
+// `registrosPreCarregados` evita uma segunda leitura da lista completa quando
+// quem chama acabou de buscá-la — é o caso do envio de importação, que precisa
+// da lista para descobrir quais leads entraram. Sem o argumento, busca sozinho.
+async function carregarPainel(registrosPreCarregados){
 
     mostrarAvisoPainel("Carregando clientes...", "info");
 
     try{
 
-        const registros = await apiListarClientes();
+        const registros = Array.isArray(registrosPreCarregados)
+            ? registrosPreCarregados
+            : await apiListarClientes();
 
         painelClientes = registros
             .map(mapearClientePainel)
@@ -705,7 +858,8 @@ function atualizarResumoPainel(){
     if(!total){
 
         mostrarAvisoPainel(
-            "Nenhum cliente com oferta e celular cadastrado.",
+            "Nenhum lead com celular cadastrado — entram aqui os clientes com " +
+            "oferta e os leads importados por planilha.",
             "info"
         );
 
@@ -713,13 +867,30 @@ function atualizarResumoPainel(){
 
     }
 
-    const recorte = rotulo + (somenteNaoContatados ? " · só não contatados" : "");
+    const recorte = rotulo +
+        (somenteNaoContatados ? " · só não contatados" : "") +
+        (somenteImportados ? " · só da última importação" : "");
 
     if(!exibidos){
 
+        // O lote importado só fica de fora daqui por falta de celular: a oferta
+        // deixou de ser exigida para quem veio de planilha.
+        if(somenteImportados){
+
+            mostrarAvisoPainel(
+                "Nenhum lead da última importação veio com celular discável, " +
+                "então não há quem contatar. " +
+                'Toque em "Importados agora" para voltar à lista completa.',
+                "info"
+            );
+
+            return;
+
+        }
+
         mostrarAvisoPainel(
-            "Nenhum cliente com oferta em " + recorte + ". " +
-            'Toque em "Todos" para ver os ' + total + " clientes da lista.",
+            "Nenhum lead em " + recorte + ". " +
+            'Toque em "Todos" para ver os ' + total + " da lista.",
             "info"
         );
 
@@ -727,12 +898,15 @@ function atualizarResumoPainel(){
 
     }
 
-    const contatados = clientesFiltradosPainel()
-        .filter(cliente => cliente.contatado).length;
+    const visiveis = clientesFiltradosPainel();
+
+    const contatados = visiveis.filter(cliente => cliente.contatado).length;
+    const semOferta = visiveis.filter(cliente => !(cliente.ofertas > 0)).length;
 
     mostrarAvisoPainel(
-        exibidos + (exibidos === 1 ? " cliente" : " clientes") +
-        " com oferta · " + recorte +
+        exibidos + (exibidos === 1 ? " lead" : " leads") +
+        " · " + recorte +
+        (semOferta ? " · " + semOferta + " ainda sem oferta" : "") +
         (somenteNaoContatados ? "" : " · " + contatados + " já contatado" +
             (contatados === 1 ? "" : "s")),
         "info"
