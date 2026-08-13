@@ -327,6 +327,29 @@ body{
    AVISOS DO CRUD
 ================================ */
 
+.buscaCrud{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:14px;
+}
+
+.buscaCrud input{
+    flex:1 1 220px;
+    border:1px solid #dfe2e7;
+    border-radius:12px;
+    height:44px;
+    padding:0 14px;
+    /* 16px evita o zoom automático do iOS ao focar o campo */
+    font-size:16px;
+}
+
+.buscaCrud input:focus{
+    outline:none;
+    border-color:var(--laranja);
+    box-shadow:0 0 0 3px rgba(255,107,0,.14);
+}
+
 .avisoClientes{
     display:none;
     margin-bottom:14px;

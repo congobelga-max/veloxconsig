@@ -194,9 +194,21 @@ function extrairRegistro(corpo){
 // CRUD
 // ===============================
 
-async function apiListarClientes(){
+// `parametros` é um objeto de query ({cpf:"..."}). Se a API ignorar o filtro,
+// quem chamou ainda peneira o resultado — o parâmetro é otimização, não
+// garantia, porque este contrato nunca foi confirmado.
+async function apiListarClientes(parametros){
 
-    const corpo = await requisitarApi(AUTH_CONFIG.API_CLIENTES);
+    let url = AUTH_CONFIG.API_CLIENTES;
+
+    const query = Object.keys(parametros || {})
+        .filter(chave => parametros[chave] !== "" && parametros[chave] != null)
+        .map(chave => encodeURIComponent(chave) + "=" + encodeURIComponent(parametros[chave]))
+        .join("&");
+
+    if(query) url += (url.indexOf("?") >= 0 ? "&" : "?") + query;
+
+    const corpo = await requisitarApi(url);
 
     return extrairLista(corpo);
 

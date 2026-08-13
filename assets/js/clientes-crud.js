@@ -293,22 +293,88 @@ function atualizarTabelaClientes(){
 // CARGA
 // ===============================
 
-async function carregarClientes(){
+function semAcento(texto){
+
+    return String(texto || "")
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .toLowerCase();
+
+}
+
+
+// Filtro local por CPF ou nome. Vale mesmo quando a API aceita o parâmetro:
+// se ela ignorar e devolver tudo, o operador ainda vê só o que procurou.
+function filtrarClientes(registros, termo){
+
+    if(!termo) return registros;
+
+    const digitos = somenteNumeros(termo);
+    const texto = semAcento(termo);
+
+    return registros.filter(cliente=>{
+
+        if(digitos.length >= 3 && somenteNumeros(cliente.cpf).indexOf(digitos) >= 0){
+            return true;
+        }
+
+        return semAcento(cliente.nome).indexOf(texto) >= 0;
+
+    });
+
+}
+
+
+function consultarClientes(){
+
+    const campo = document.getElementById("buscaCliente");
+
+    return carregarClientes(campo ? campo.value.trim() : "");
+
+}
+
+
+// Sem `termo` traz a lista inteira. A tela não chama isto sozinha: a carga é
+// demorada e atrapalha quem entrou só para cadastrar um cliente novo.
+async function carregarClientes(termo){
 
     const aviso = document.getElementById("avisoClientes");
 
-    mostrarAvisoClientes("Carregando clientes...", "info");
+    mostrarAvisoClientes(
+        termo ? 'Procurando "' + termo + '"...' : "Carregando todos os clientes...",
+        "info"
+    );
 
     try{
 
-        const registros = await apiListarClientes();
+        // CPF completo vai como parâmetro; se a API filtrar, a resposta chega
+        // menor e mais rápida.
+        const cpf = somenteNumeros(termo);
 
-        clientesApi = registros
-            .map(mapearClienteDaApi)
-            .filter(cliente => cliente.nome || cliente.cpf);
+        const registros = await apiListarClientes(
+            cpf.length === 11 ? {cpf: cpf} : null
+        );
+
+        clientesApi = filtrarClientes(
+            registros
+                .map(mapearClienteDaApi)
+                .filter(cliente => cliente.nome || cliente.cpf),
+            termo
+        );
 
         iniciarTabelaClientes();
         atualizarTabelaClientes();
+
+        if(!clientesApi.length && termo){
+
+            mostrarAvisoClientes(
+                'Nenhum cliente encontrado para "' + termo + '".',
+                "info"
+            );
+
+            return;
+
+        }
 
         if(aviso) aviso.style.display = "none";
 
@@ -579,11 +645,24 @@ async function confirmarExclusaoCliente(idApi){
 
 // ===============================
 // SINCRONIZAÇÃO COM O PAINEL
-// O Painel lê a própria API (painel.js), então sincronizar é recarregá-lo
-// com o que acabou de ser cadastrado aqui e levar o operador até lá.
+// O Painel lê a própria API (painel.js), então sincronizar é recarregá-lo e
+// levar o operador até lá. Vai sempre a lista completa — não o recorte que
+// estiver na tabela de Clientes —, e o Painel aplica o critério dele: só
+// entra quem tem oferta e celular.
 // ===============================
 
 function sincronizarPainel(){
+
+    // Sem isto o Painel abriria no filtro "Hoje" e pareceria vazio: quem foi
+    // cadastrado em outro dia sumiria logo depois de sincronizar.
+    filtroDataPainel = "todos";
+    dataEscolhidaPainel = "";
+
+    const entrada = document.getElementById("dataPainel");
+
+    if(entrada) entrada.value = "";
+
+    marcarFiltroAtivo();
 
     carregarPainel();
 
@@ -641,7 +720,14 @@ function mostrarSecao(secao){
 
         if(!tabelaIniciada){
 
-            carregarClientes();
+            // Tabela vazia, sem buscar nada: a lista completa é lenta e quem
+            // entra aqui em geral quer cadastrar ou consultar um cliente só.
+            iniciarTabelaClientes();
+
+            mostrarAvisoClientes(
+                "Consulte pelo CPF ou nome, ou carregue a lista completa.",
+                "info"
+            );
 
         }else{
 

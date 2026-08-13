@@ -219,9 +219,9 @@
 
                 <div class="acoesCrud">
 
-                    <button type="button" class="btnSecundario" onclick="carregarClientes()">
-                        <i class="bi bi-arrow-clockwise"></i>
-                        Atualizar
+                    <button type="button" class="btnSecundario" onclick="carregarClientes()" title="Trazer todos os clientes (pode demorar)">
+                        <i class="bi bi-list-ul"></i>
+                        Carregar todos
                     </button>
 
                     <button type="button" class="btnSecundario" onclick="sincronizarPainel()" title="Levar estes clientes para o Painel">
@@ -235,6 +235,23 @@
                     </button>
 
                 </div>
+
+            </div>
+
+            <!-- A tela não carrega nada sozinha: a busca é o caminho normal. -->
+            <div class="buscaCrud">
+
+                <input
+                    type="search"
+                    id="buscaCliente"
+                    placeholder="CPF ou nome do cliente"
+                    autocomplete="off"
+                    onkeydown="if(event.key === 'Enter'){ event.preventDefault(); consultarClientes(); }">
+
+                <button type="button" class="btnPrimario" onclick="consultarClientes()">
+                    <i class="bi bi-search"></i>
+                    Consultar
+                </button>
 
             </div>
 

@@ -50,9 +50,13 @@ The login response shape was never confirmed against the live API, so `extrairTo
 - **Clientes** — a DataTables CRUD over `AUTH_CONFIG.API_CLIENTES`.
 - **Importações** — spreadsheet upload + history over `AUTH_CONFIG.API_IMPORTACOES`.
 
-Each table is built while hidden, so its section must call `columns.adjust().responsive.recalc()` on show or every column collapses to zero width. Clientes and Importações load lazily on first visit; the Painel loads with the page, since it is the section shown on entry.
+Each table is built while hidden, so its section must call `columns.adjust().responsive.recalc()` on show or every column collapses to zero width. The Painel loads with the page, since it is the section shown on entry. Importações loads lazily on first visit.
 
-**The three data sets are distinct.** `painelClientes` ← server (filtered); `clientesApi` ← server; `importacoes` ← server. `carregarPainel()` also assigns the global `clientes`, because `abrirModalProposta` / `enviarPropostaWhatsApp` in `app.js` look the record up there. `sincronizarPainel()` is now just "reload the Painel and go to it". Nothing flows Painel → server except by uploading a spreadsheet.
+**Clientes loads nothing on entry** — the full list is slow, and the usual reasons to open that screen are registering one client or looking one up. It opens with an empty table and a hint; `consultarClientes()` searches by CPF or name, and **Carregar todos** is the explicit way to pull everything. A search whose term is 11 digits sends `?cpf=` to the API, but `filtrarClientes()` also filters locally afterwards: that parameter was never confirmed to be supported, so it is treated as an optimization, not a guarantee. Name matching goes through `semAcento()`, so "jose d'avila" finds "JOSÉ D'ÁVILA".
+
+**The three data sets are distinct.** `painelClientes` ← server (filtered); `clientesApi` ← server; `importacoes` ← server. `carregarPainel()` also assigns the global `clientes`, because `abrirModalProposta` / `enviarPropostaWhatsApp` in `app.js` look the record up there. Nothing flows Painel → server except by uploading a spreadsheet.
+
+`sincronizarPainel()` reloads the Painel from the API and goes there. It deliberately does **not** hand over `clientesApi` — that array is whatever the Clientes search last returned, which may be a single record; the Painel does its own full fetch and applies its own rule (offer + celular). It also resets the date filter to **Todos** first: leaving it on the default *Hoje* made the Painel look empty right after syncing, because clients registered on any earlier day were filtered out by a rule that has nothing to do with syncing.
 
 ### Painel (`assets/js/painel.js`)
 
