@@ -103,7 +103,13 @@ function mapearClientePainel(registro){
 
         // Preenchido por atualizarImportadosPainel(), pelo mesmo motivo: uma
         // importação troca a lista com o Painel já montado.
-        importado: false
+        importado: false,
+
+        // Preenchido por atualizarOrigensPainel(), idem. Já nasce com valor
+        // porque a coluna lê o campo direto e desenhar antes da primeira
+        // atualização deixaria a célula vazia.
+        origem: ORIGEM_BASE,
+        origemData: ""
 
     };
 
@@ -257,6 +263,75 @@ function marcaImportado(cliente){
 }
 
 
+// ===============================
+// ORIGEM DO LEAD
+// `leads_importados` (importacoes.js) acumula todo CPF que já entrou por
+// planilha, com a data. É a mesma fonte que a regra de entrada consulta, então
+// a coluna diz exatamente por que aquele lead está aqui: veio de um arquivo ou
+// já estava na base com oferta.
+//
+// Como o contato e a marca do último lote, esse registro é local e muda com o
+// Painel na tela — a origem é relida antes de cada desenho em vez de ser
+// resolvida uma vez no mapeamento.
+//
+// O registro é do navegador: lead importado em outra máquina, ou antes de a
+// marcação existir, aparece como "Base". O title do selo diz isso, para a
+// coluna não ser lida como uma afirmação do servidor.
+// ===============================
+
+const ORIGEM_PLANILHA = "Planilha";
+const ORIGEM_BASE = "Base";
+
+
+function atualizarOrigensPainel(){
+
+    // Sem importacoes.js carregado, todos contam como base — mesma degradação
+    // da regra de entrada, em vez de quebrar o desenho.
+    const temRegistro = typeof ehLeadImportado === "function";
+
+    painelClientes.forEach(cliente=>{
+
+        const daPlanilha = temRegistro && ehLeadImportado(cliente.id);
+
+        cliente.origem = daPlanilha ? ORIGEM_PLANILHA : ORIGEM_BASE;
+
+        cliente.origemData = daPlanilha && typeof dataDeImportacao === "function"
+            ? dataDeImportacao(cliente.id)
+            : "";
+
+    });
+
+}
+
+
+function tituloOrigem(cliente){
+
+    if(cliente.origem === ORIGEM_PLANILHA){
+
+        return "Importado por planilha em " +
+            (formatarDataHora(cliente.origemData) || "data não registrada");
+
+    }
+
+    return "Já estava na base — nenhuma importação deste CPF registrada neste navegador";
+
+}
+
+
+function seloOrigem(cliente){
+
+    const daPlanilha = cliente.origem === ORIGEM_PLANILHA;
+
+    return '<span class="seloOrigem ' +
+        (daPlanilha ? "origemPlanilha" : "origemBase") +
+        '" title="' + escaparHtml(tituloOrigem(cliente)) + '">' +
+        '<i class="bi ' +
+        (daPlanilha ? "bi-file-earmark-spreadsheet" : "bi-database") + '"></i> ' +
+        escaparHtml(cliente.origem) + "</span>";
+
+}
+
+
 function textoContatoPainel(cliente){
 
     if(!cliente.contatado) return "Não contatado";
@@ -315,7 +390,7 @@ function rotuloFiltroPainel(){
 
 // ===============================
 // TABELA
-// Nome e data de criação ficam visíveis; celular, CPF, ofertas, status e ações
+// Nome, contato, origem e data de criação ficam visíveis; celular, CPF, ofertas e ações
 // vão para o detalhe da linha via className "none" — o Responsive nunca sobe
 // uma coluna dessas para a grade, em nenhuma largura de tela.
 // ===============================
@@ -405,6 +480,15 @@ function iniciarTabelaPainel(){
                         : valor
             },
             {
+                // O valor cru é o próprio rótulo ("Planilha"/"Base"), então a
+                // busca da tabela filtra por origem sem coluna auxiliar.
+                title:"Origem",
+                data:"origem",
+                responsivePriority:4,
+                render: (valor, tipo, cliente) =>
+                    tipo === "display" ? seloOrigem(cliente) : valor
+            },
+            {
                 title:"Data de criação",
                 data:"criadoEm",
                 responsivePriority:3,
@@ -462,8 +546,9 @@ function iniciarTabelaPainel(){
         lengthMenu:[10,25,50,100],
 
         // Mais recentes primeiro: é a fila de trabalho do operador.
-        // Índice 3 = "Data de criação" (0 é o controle e 2 virou "Contato").
-        order:[[3,"desc"]],
+        // Índice 4 = "Data de criação" (0 é o controle, 2 é "Contato" e 3 é
+        // "Origem") — este número muda toda vez que uma coluna visível entra.
+        order:[[4,"desc"]],
 
         language:{
             emptyTable:"Nenhum lead neste período.",
@@ -560,9 +645,15 @@ function cartaoPainel(cliente){
         ${escaparHtml(formatarDataHora(cliente.criadoEm)) || "sem data de criação"}
     </p>
 
-    <span class="seloContato ${cliente.contatado ? "contatoFeito" : "contatoPendente"}">
-        ${escaparHtml(textoContatoPainel(cliente))}
-    </span>
+    <div class="cardPainelSelos">
+
+        <span class="seloContato ${cliente.contatado ? "contatoFeito" : "contatoPendente"}">
+            ${escaparHtml(textoContatoPainel(cliente))}
+        </span>
+
+        ${seloOrigem(cliente)}
+
+    </div>
 
     <div class="cardPainelCampo">
         <span class="rotuloCampo">Celular</span>
@@ -615,6 +706,7 @@ function desenharPainel(){
 
     atualizarContatosPainel();
     atualizarImportadosPainel();
+    atualizarOrigensPainel();
 
     // Antes de filtrar: um envio que não trouxe ninguém esconde o chip e, com
     // ele, desliga o recorte — que senão esvaziaria a lista sem explicação.

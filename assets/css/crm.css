@@ -719,6 +719,47 @@ body{
     margin-bottom:12px;
 }
 
+
+/* ===============================
+   ORIGEM DO LEAD
+   Coluna da tabela e selo do card: de onde o cliente veio, planilha ou base.
+================================ */
+
+.seloOrigem{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:4px 10px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:700;
+    white-space:nowrap;
+}
+
+/* Planilha é o que o operador acabou de trazer para trabalhar. */
+.origemPlanilha{
+    background:#e3ecff;
+    color:#1b3f9c;
+}
+
+.origemBase{
+    background:#ececef;
+    color:#666;
+}
+
+/* No card os dois selos dividem a mesma linha; a margem de baixo passa a ser
+   do container, senão a linha ganha um degrau quando ela quebra. */
+.cardPainelSelos{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:12px;
+}
+
+.cardPainel .cardPainelSelos .seloContato{
+    margin-bottom:0;
+}
+
 .campoDataPainel{
     display:inline-flex;
     align-items:center;
