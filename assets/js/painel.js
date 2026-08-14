@@ -121,9 +121,12 @@ function mapearClientePainel(registro){
         // pela metade, que apagaria os campos omitidos.
         bruto: registro,
 
-        // Status de contato do servidor. O primeiro contato também é gravado
-        // no localStorage; os dois são lidos por atualizarContatosPainel().
+        // Status de contato do servidor, lido por atualizarContatosPainel().
         contatoStatus: registro.contatoStatus,
+
+        // Quando o contato foi registrado, em UTC. É o que a coluna mostra no
+        // lugar da antiga data guardada no localStorage.
+        contatadoEm: registro.contatadoEmUtc || "",
 
         // Valor cru do campo de origem do servidor, quando ele vem.
         origemApi: origemDaApi(registro),
@@ -465,16 +468,21 @@ function classeContato(cliente){
 }
 
 
-// Três estados, três textos — todos vindos do servidor. Não há data aqui: o
-// carimbo do contato era local e saiu junto com o resto. Quando a API expuser
-// um campo de data para isso, é aqui que ele entra.
+// Três estados, todos vindos do servidor. A data sai de `contatadoEmUtc` e é
+// formatada como a antiga dupla de chaves locais mostrava: 14/08/2026 15:32.
+// Registro antigo, gravado antes do campo existir, fica sem data — e aí o selo
+// diz só "Contatado" em vez de exibir um horário inventado.
 function textoContatoPainel(cliente){
 
     if(!cliente.contatado) return "Não contatado";
 
-    return cliente.contatoNivel >= CONTATO_STATUS.CONTATADO
+    const rotulo = cliente.contatoNivel >= CONTATO_STATUS.CONTATADO
         ? "Contatado"
         : "Enviado";
+
+    const quando = formatarDataHora(cliente.contatadoEm);
+
+    return quando ? rotulo + " em " + quando : rotulo;
 
 }
 

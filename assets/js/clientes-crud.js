@@ -51,8 +51,9 @@ function mapearClienteDaApi(registro){
         // inteiro se a rota substituir o recurso.
         bruto: registro,
 
-        // Status de contato do servidor (1 não contatado, 2 contatado).
+        // Contato: status (1 não contatado, 2 enviado, 3 contatado) e carimbo.
         contatoStatus: registro.contatoStatus,
+        contatadoEm: registro.contatadoEmUtc || "",
 
         // A API não tem status de margem: esse é local, gravado por CPF.
         status: localStorage.getItem("status_" + idLocal) || "nao"
@@ -71,12 +72,16 @@ function mapearClienteParaApi(cliente){
         email: cliente.email
     };
 
-    // Vai junto quando o registro já traz: se o PUT substitui o recurso,
-    // omiti-lo devolveria o cliente para "não contatado" a cada edição de
+    // Vão junto quando o registro já traz: o PUT substitui o recurso, e
+    // omiti-los devolveria o cliente para "não contatado" a cada edição de
     // cadastro — apagando um trabalho que não tem nada a ver com este
-    // formulário. O campo não é editável aqui, só preservado.
+    // formulário. Os campos não são editáveis aqui, só preservados.
     if(cliente.contatoStatus !== undefined && cliente.contatoStatus !== null){
         dados.contatoStatus = cliente.contatoStatus;
+    }
+
+    if(cliente.contatadoEm){
+        dados.contatadoEmUtc = cliente.contatadoEm;
     }
 
     return dados;

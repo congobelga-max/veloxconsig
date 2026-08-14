@@ -242,40 +242,27 @@ async function apiAtualizarCliente(idApi, dados){
 }
 
 
-// Atualiza só o status de contato do cliente (contatoStatus 1 -> 2).
+// Registra o contato: `contatoStatus` e `contatadoEmUtc`.
 //
-// PATCH é o verbo do envio parcial: se esta rota substituir o recurso inteiro,
-// um PUT levando apenas este campo apagaria nome, celular e e-mail do cadastro.
-// Só quando a API responde que não conhece PATCH (404/405/501) o envio é
-// refeito como PUT — e aí devolvendo o registro completo que ela mesma mandou,
-// nunca um corpo pela metade.
-async function apiAtualizarContatoStatus(idApi, status, registroBruto){
+// PUT, e com o registro inteiro no corpo. O PATCH parcial não chegava a gravar
+// no banco, e esta rota substitui o recurso: mandar só os dois campos apagaria
+// nome, celular e e-mail. A base do corpo é o registro cru que a própria API
+// devolveu (`cliente.bruto`), então nada é inventado aqui — os dois campos
+// entram por cima.
+async function apiAtualizarContato(idApi, status, quandoUtc, registroBruto){
 
-    const url = AUTH_CONFIG.API_CLIENTES + "/" + encodeURIComponent(idApi);
+    const corpo = Object.assign({}, registroBruto || {},{
+        contatoStatus: status,
+        contatadoEmUtc: quandoUtc
+    });
 
-    try{
-
-        return await requisitarApi(url,{
-            metodo:"PATCH",
-            corpo:{contatoStatus: status}
-        });
-
-    }catch(erro){
-
-        const semPatch = erro.status === 404 ||
-            erro.status === 405 ||
-            erro.status === 501;
-
-        // Sem o registro cru não há o que devolver: melhor propagar o erro do
-        // que arriscar um PUT incompleto.
-        if(!semPatch || !registroBruto) throw erro;
-
-        return await requisitarApi(url,{
+    return requisitarApi(
+        AUTH_CONFIG.API_CLIENTES + "/" + encodeURIComponent(idApi),
+        {
             metodo:"PUT",
-            corpo: Object.assign({}, registroBruto, {contatoStatus: status})
-        });
-
-    }
+            corpo: corpo
+        }
+    );
 
 }
 

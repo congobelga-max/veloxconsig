@@ -784,20 +784,28 @@ function sincronizarContatoNaApi(id){
     }
 
     const anterior = cliente.contatoStatus;
+    const anteriorEm = cliente.contatadoEm;
 
     // Só sobe: quem já está em CONTATADO não tem o que reenviar.
     if(numeroContatoStatus(anterior) >= CONTATO_STATUS.CONTATADO) return;
 
-    cliente.contatoStatus = CONTATO_STATUS.CONTATADO;
+    // O carimbo é do navegador — é o instante em que o operador abriu a
+    // conversa. A tela o exibe convertido para o fuso local.
+    const quandoUtc = new Date().toISOString();
 
-    apiAtualizarContatoStatus(
+    cliente.contatoStatus = CONTATO_STATUS.CONTATADO;
+    cliente.contatadoEm = quandoUtc;
+
+    apiAtualizarContato(
         typeof identificadorUrl === "function" ? identificadorUrl(cliente) : cliente.idApi,
         CONTATO_STATUS.CONTATADO,
+        quandoUtc,
         cliente.bruto
     )
         .catch(erro=>{
 
             cliente.contatoStatus = anterior;
+            cliente.contatadoEm = anteriorEm;
 
             // O operador precisa saber que a marca não pegou — a tela vai
             // voltar a mostrar "Não contatado" no próximo desenho.
