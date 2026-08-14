@@ -1,6 +1,7 @@
 // ===============================
-// PAINEL — CLIENTES COM OFERTA
-// Tabela sobre /clientes: entram apenas os registros com oferta e com celular.
+// PAINEL — FILA DE TRABALHO
+// Tabela sobre /clientes: entram todos os registros com celular discável e CPF,
+// com oferta ou sem. A contagem de ofertas é informação da linha, não filtro.
 // Depende de api.js (transporte) e de app.js (helpers, WhatsApp, proposta).
 // ===============================
 
@@ -19,18 +20,29 @@ let somenteNaoContatados = false;
 // importação (importacoes.js grava a lista de CPFs).
 let somenteImportados = false;
 
+// Quarta dimensão: só quem já tem oferta do banco. Isto já foi regra de entrada
+// do Painel — agora é filtro, que é a diferença entre o operador escolher ver a
+// fila pronta para vender e o app decidir por ele que o resto não existe.
+let somenteComOferta = false;
+
 // AAAA-MM-DD, no formato que o <input type="date"> devolve.
 let dataEscolhidaPainel = "";
 
 // tabela | cards
 let visaoPainel = "tabela";
 
+// O que a última carga trouxe e o que ficou de fora da regra de entrada.
+// Preenchido por carregarPainel() e lido pelo resumo — é o que explica uma
+// lista menor que a tela de Clientes.
+let resumoCargaPainel = {recebidos:0, semCelular:0, semCpf:0};
+
 
 // ===============================
 // OFERTAS
 // O nome do campo ainda não foi confirmado no retorno de /clientes, então as
 // grafias prováveis são aceitas. Sem nenhuma delas o cliente conta zero oferta
-// e fica de fora — é exatamente o filtro pedido, e não um palpite pela margem.
+// e aparece como "sem oferta ainda" — nada é derivado da margem, que é outra
+// coisa. Isso não decide mais quem entra no Painel: hoje é só exibição.
 // Ao confirmar o contrato, reduzir a lista ao nome real.
 // ===============================
 
@@ -105,10 +117,23 @@ function mapearClientePainel(registro){
         // importação troca a lista com o Painel já montado.
         importado: false,
 
-        // Preenchido por atualizarOrigensPainel(), idem. Já nasce com valor
-        // porque a coluna lê o campo direto e desenhar antes da primeira
-        // atualização deixaria a célula vazia.
+        // Registro como veio da API. Guardado para o PUT de reserva do
+        // contatoStatus poder devolver o cadastro inteiro em vez de um corpo
+        // pela metade, que apagaria os campos omitidos.
+        bruto: registro,
+
+        // Status de contato do servidor. O primeiro contato também é gravado
+        // no localStorage; os dois são lidos por atualizarContatosPainel().
+        contatoStatus: registro.contatoStatus,
+
+        // Valor cru do campo de origem do servidor, quando ele vem.
+        origemApi: origemDaApi(registro),
+
+        // Resolvidos por atualizarOrigensPainel() (servidor primeiro, registro
+        // local depois). Já nascem preenchidos porque a coluna lê o campo
+        // direto: desenhar antes da primeira atualização deixaria a célula vazia.
         origem: ORIGEM_BASE,
+        origemFonte: "local",
         origemData: ""
 
     };
@@ -116,27 +141,23 @@ function mapearClientePainel(registro){
 }
 
 
-// Regra de entrada no Painel: celular discável, CPF (sem ele não há chave local
-// para o histórico do operador) e — para quem veio da API — oferta disponível.
+// Regra de entrada no Painel: celular discável e CPF. Nada mais.
 //
-// Lead importado por planilha entra sem oferta de propósito: ele nasce com zero
-// oferta porque as consultas bancárias ainda não rodaram, e é justamente a fila
-// que o operador precisa trabalhar. Quem já estava na base segue na regra
-// antiga, senão o Painel viraria a lista inteira de clientes.
+// A oferta NÃO é exigida — nem de quem veio da API. O Painel é a lista de
+// trabalho do operador, e cliente sem oferta é exatamente quem ainda precisa
+// ser consultado; escondê-lo tirava da tela a fila que existe para ser
+// trabalhada. (Antes, só o lead importado por planilha tinha essa isenção.)
 //
-// O celular continua obrigatório nos dois casos: sem número não há WhatsApp
-// nem Telegram, que é tudo o que o card oferece.
+// O que continua obrigatório:
+// - celular discável, porque WhatsApp, Telegram e proposta são tudo o que a
+//   linha oferece, e sem número nenhum deles funciona;
+// - CPF, porque é a chave local de todo o histórico do operador
+//   (status_, contato_, classificacao_) e sem ela não há onde gravar.
 function clienteDoPainel(cliente){
 
     const digitos = somenteNumeros(cliente.celular);
 
-    if(digitos.length < 10 || !cliente.id) return false;
-
-    if(cliente.ofertas > 0) return true;
-
-    // typeof: sem importacoes.js carregado, a regra volta a ser só a oferta em
-    // vez de derrubar o Painel inteiro.
-    return typeof ehLeadImportado === "function" && ehLeadImportado(cliente.id);
+    return digitos.length >= 10 && !!cliente.id;
 
 }
 
@@ -196,7 +217,9 @@ function diaAlvoPainel(){
 
 // ===============================
 // PRIMEIRO CONTATO
-// `contato_inicial_<cpf>` é gravado por abrirWhatsapp() e é local: a lista
+// O servidor guarda `contatoStatus` (1 Não contatado, 2 Enviado, 3 Contatado)
+// e o app grava o 3 ao abrir a conversa — sincronizarContatoNaApi(), em app.js.
+// `contato_inicial_<cpf>` continua sendo gravado por abrirWhatsapp() e é local: a lista
 // precisa relê-lo antes de cada desenho, senão o lead que acabou de ser
 // abordado continua aparecendo como não contatado.
 // ===============================
@@ -205,8 +228,21 @@ function atualizarContatosPainel(){
 
     painelClientes.forEach(cliente=>{
 
-        cliente.contatado =
+        const localMarcado =
             localStorage.getItem("contato_inicial_" + cliente.id) === "sim";
+
+        const doServidor = numeroContatoStatus(cliente.contatoStatus);
+
+        // A chave local vale como CONTATADO — é o que o clique manda ao
+        // servidor —, e ela é gravada no instante do toque, antes de a chamada
+        // voltar: é o que faz a linha reagir na hora.
+        cliente.contatoNivel = Math.max(
+            doServidor,
+            localMarcado ? CONTATO_STATUS.CONTATADO : 0
+        );
+
+        // Uma dimensão só para o chip e para o filtro: abordado ou não.
+        cliente.contatado = cliente.contatoNivel >= CONTATO_STATUS.ENVIADO;
 
         cliente.contatoData = cliente.contatado
             ? (localStorage.getItem("contato_data_" + cliente.id) || "")
@@ -265,35 +301,106 @@ function marcaImportado(cliente){
 
 // ===============================
 // ORIGEM DO LEAD
-// `leads_importados` (importacoes.js) acumula todo CPF que já entrou por
-// planilha, com a data. É a mesma fonte que a regra de entrada consulta, então
-// a coluna diz exatamente por que aquele lead está aqui: veio de um arquivo ou
-// já estava na base com oferta.
+// A fonte da verdade é o campo que /clientes devolve — ele vale para qualquer
+// navegador e para leads importados por outra pessoa.
 //
-// Como o contato e a marca do último lote, esse registro é local e muda com o
-// Painel na tela — a origem é relida antes de cada desenho em vez de ser
-// resolvida uma vez no mapeamento.
+// Quando o registro chega sem ele, sobra o `leads_importados` (importacoes.js),
+// que acumula localmente todo CPF que já entrou por planilha, com a data. Essa
+// reserva é do navegador: lead importado em outra máquina, ou antes de a
+// marcação existir, cai em "Base". O title do selo diz de onde veio a resposta,
+// para a coluna não afirmar como servidor o que é palpite local.
 //
-// O registro é do navegador: lead importado em outra máquina, ou antes de a
-// marcação existir, aparece como "Base". O title do selo diz isso, para a
-// coluna não ser lida como uma afirmação do servidor.
+// Como o registro local muda com o Painel na tela, a origem é resolvida antes
+// de cada desenho, e não uma vez só no mapeamento.
+//
+// O campo é `origem` e os valores são o enum do servidor — Importacao, Webhook
+// e Api. Um valor fora dessa lista é exibido cru, de propósito: engolir o
+// desconhecido em "Base" esconderia justamente a origem que alguém acabou de
+// criar. Se a API serializar o enum como número (0/1/2), é isso que vai
+// aparecer na coluna — a ordem dos membros não é adivinhada aqui, porque um
+// palpite errado rotularia o cliente com a origem de outro.
 // ===============================
 
 const ORIGEM_PLANILHA = "Planilha";
 const ORIGEM_BASE = "Base";
 
+// Chave sem acento, minúscula e sem separadores -> rótulo pt-BR e estilo.
+const ORIGENS_API = {
+    importacao:{
+        rotulo:"Importação",
+        classe:"origemImportacao",
+        icone:"bi-file-earmark-spreadsheet",
+        descricao:"Criado por uma importação de planilha"
+    },
+    webhook:{
+        rotulo:"Webhook",
+        classe:"origemWebhook",
+        icone:"bi-lightning-charge",
+        descricao:"Recebido pelo callback POST /webhooks/leads"
+    },
+    api:{
+        rotulo:"API",
+        classe:"origemApi",
+        icone:"bi-code-slash",
+        descricao:"Cadastro direto pela API (POST /api/clientes)"
+    }
+};
+
+
+function origemDaApi(registro){
+
+    const valor = registro.origem;
+
+    return valor === undefined || valor === null ? "" : String(valor).trim();
+
+}
+
+
+// Nada de sensível à caixa: o enum chega em PascalCase ("Importacao") e uma
+// mudança de serialização não pode apagar a coluna.
+function definicaoOrigem(valor){
+
+    return ORIGENS_API[semAcento(valor).replace(/[\s_-]+/g,"")] || null;
+
+}
+
+
+function rotuloOrigem(valor){
+
+    const definicao = definicaoOrigem(valor);
+
+    return definicao ? definicao.rotulo : valor;
+
+}
+
 
 function atualizarOrigensPainel(){
 
-    // Sem importacoes.js carregado, todos contam como base — mesma degradação
-    // da regra de entrada, em vez de quebrar o desenho.
+    // Sem importacoes.js carregado, a reserva local some e sobra o campo da
+    // API — degradar assim é melhor que quebrar o desenho da tabela.
     const temRegistro = typeof ehLeadImportado === "function";
 
     painelClientes.forEach(cliente=>{
 
+        if(cliente.origemApi){
+
+            cliente.origem = rotuloOrigem(cliente.origemApi);
+            cliente.origemFonte = "api";
+
+            // A data local ainda serve de detalhe quando o CPF também consta
+            // como importado aqui.
+            cliente.origemData = temRegistro && typeof dataDeImportacao === "function"
+                ? dataDeImportacao(cliente.id)
+                : "";
+
+            return;
+
+        }
+
         const daPlanilha = temRegistro && ehLeadImportado(cliente.id);
 
         cliente.origem = daPlanilha ? ORIGEM_PLANILHA : ORIGEM_BASE;
+        cliente.origemFonte = "local";
 
         cliente.origemData = daPlanilha && typeof dataDeImportacao === "function"
             ? dataDeImportacao(cliente.id)
@@ -306,32 +413,76 @@ function atualizarOrigensPainel(){
 
 function tituloOrigem(cliente){
 
-    if(cliente.origem === ORIGEM_PLANILHA){
+    const quando = formatarDataHora(cliente.origemData);
 
-        return "Importado por planilha em " +
-            (formatarDataHora(cliente.origemData) || "data não registrada");
+    if(cliente.origemFonte === "api"){
+
+        const definicao = definicaoOrigem(cliente.origemApi);
+
+        // O valor cru vai junto: o rótulo é tradução nossa, e é o valor do
+        // servidor que se discute quando algo parece errado.
+        return (definicao
+                ? definicao.descricao
+                : "Origem não reconhecida por este app") +
+            ' — origem="' + cliente.origemApi + '" no /clientes' +
+            (quando ? " · importado neste navegador em " + quando : "");
 
     }
 
-    return "Já estava na base — nenhuma importação deste CPF registrada neste navegador";
+    if(cliente.origem === ORIGEM_PLANILHA){
+
+        return "Importado por planilha em " + (quando || "data não registrada") +
+            " — registro deste navegador, o servidor não informou origem";
+
+    }
+
+    return "O servidor não informou origem e não há importação deste CPF " +
+        "registrada neste navegador";
 
 }
 
 
 function seloOrigem(cliente){
 
-    const daPlanilha = cliente.origem === ORIGEM_PLANILHA;
+    const definicao = cliente.origemFonte === "api"
+        ? definicaoOrigem(cliente.origemApi)
+        : null;
 
-    return '<span class="seloOrigem ' +
-        (daPlanilha ? "origemPlanilha" : "origemBase") +
+    // Sem definição, o selo fica neutro: a origem local (Planilha) reaproveita
+    // o estilo de importação, que é o que ela significa.
+    const classe = definicao
+        ? definicao.classe
+        : (cliente.origem === ORIGEM_PLANILHA ? "origemImportacao" : "origemBase");
+
+    const icone = definicao
+        ? definicao.icone
+        : (cliente.origem === ORIGEM_PLANILHA
+            ? "bi-file-earmark-spreadsheet"
+            : "bi-database");
+
+    return '<span class="seloOrigem ' + classe +
         '" title="' + escaparHtml(tituloOrigem(cliente)) + '">' +
-        '<i class="bi ' +
-        (daPlanilha ? "bi-file-earmark-spreadsheet" : "bi-database") + '"></i> ' +
+        '<i class="bi ' + icone + '"></i> ' +
         escaparHtml(cliente.origem) + "</span>";
 
 }
 
 
+// "Contatado" ganha selo próprio para não se perder no meio dos "Enviado" —
+// que é o estado gravado por fora do app, já que o clique aqui vai direto a 3.
+function classeContato(cliente){
+
+    if(!cliente.contatado) return "contatoPendente";
+
+    return cliente.contatoNivel >= CONTATO_STATUS.CONTATADO
+        ? "contatoRespondido"
+        : "contatoFeito";
+
+}
+
+
+// Três estados, três textos. A data e a hora são locais, então só aparecem no
+// navegador onde o contato foi feito.
 function textoContatoPainel(cliente){
 
     if(!cliente.contatado) return "Não contatado";
@@ -340,7 +491,11 @@ function textoContatoPainel(cliente){
         .filter(Boolean)
         .join(" ");
 
-    return quando ? "Contatado em " + quando : "Contatado";
+    if(cliente.contatoNivel >= CONTATO_STATUS.CONTATADO){
+        return quando ? "Contatado em " + quando : "Contatado";
+    }
+
+    return "Enviado";
 
 }
 
@@ -356,6 +511,8 @@ function clientesFiltradosPainel(){
         if(somenteNaoContatados && cliente.contatado) return false;
 
         if(somenteImportados && !cliente.importado) return false;
+
+        if(somenteComOferta && !(cliente.ofertas > 0)) return false;
 
         return true;
 
@@ -474,8 +631,7 @@ function iniciarTabelaPainel(){
                 responsivePriority:2,
                 render: (valor, tipo, cliente) =>
                     tipo === "display"
-                        ? '<span class="seloContato ' +
-                          (valor ? "contatoFeito" : "contatoPendente") + '">' +
+                        ? '<span class="seloContato ' + classeContato(cliente) + '">' +
                           escaparHtml(textoContatoPainel(cliente)) + "</span>"
                         : valor
             },
@@ -647,7 +803,7 @@ function cartaoPainel(cliente){
 
     <div class="cardPainelSelos">
 
-        <span class="seloContato ${cliente.contatado ? "contatoFeito" : "contatoPendente"}">
+        <span class="seloContato ${classeContato(cliente)}">
             ${escaparHtml(textoContatoPainel(cliente))}
         </span>
 
@@ -711,6 +867,9 @@ function desenharPainel(){
     // Antes de filtrar: um envio que não trouxe ninguém esconde o chip e, com
     // ele, desliga o recorte — que senão esvaziaria a lista sem explicação.
     marcarChipImportados();
+
+    // A contagem é sobre a lista carregada, então acompanha cada desenho.
+    marcarChipOferta();
 
     tabelaPainel.clear();
     tabelaPainel.rows.add(clientesFiltradosPainel());
@@ -778,6 +937,29 @@ function marcarFiltroAtivo(){
     if(contato) contato.classList.toggle("ativo", somenteNaoContatados);
 
     marcarChipImportados();
+    marcarChipOferta();
+
+}
+
+
+// Diferente do chip de importados, este nunca some: ele conta sobre a lista
+// inteira, e um contador em zero é a resposta ("nenhuma consulta voltou ainda"),
+// não um motivo para esconder o controle.
+function marcarChipOferta(){
+
+    const chip = document.getElementById("filtroComOferta");
+
+    if(!chip) return;
+
+    const total = painelClientes.filter(cliente => cliente.ofertas > 0).length;
+
+    const rotulo = chip.querySelector(".rotuloChip");
+
+    if(rotulo){
+        rotulo.textContent = "Com oferta (" + total + ")";
+    }
+
+    chip.classList.toggle("ativo", somenteComOferta);
 
 }
 
@@ -838,6 +1020,16 @@ function alternarImportados(){
 }
 
 
+function alternarComOferta(){
+
+    somenteComOferta = !somenteComOferta;
+
+    marcarFiltroAtivo();
+    desenharPainel();
+
+}
+
+
 // Chamado logo depois de um envio: abre o Painel já recortado nos leads que
 // acabaram de entrar. O filtro de data vai para "Todos" de propósito — a marca
 // da importação é o recorte exato, e um dia divergente (arquivo processado
@@ -848,6 +1040,11 @@ function irParaLeadsImportados(){
 
     somenteImportados = true;
     somenteNaoContatados = false;
+
+    // Lead recém-importado nasce sem oferta: com este filtro ligado, a tela
+    // abriria vazia justamente no lote que acabou de entrar.
+    somenteComOferta = false;
+
     filtroDataPainel = "todos";
     dataEscolhidaPainel = "";
 
@@ -917,9 +1114,20 @@ async function carregarPainel(registrosPreCarregados){
             ? registrosPreCarregados
             : await apiListarClientes();
 
-        painelClientes = registros
-            .map(mapearClientePainel)
-            .filter(clienteDoPainel);
+        const mapeados = registros.map(mapearClientePainel);
+
+        painelClientes = mapeados.filter(clienteDoPainel);
+
+        // Quem a API devolveu e o Painel não mostra. Descartar em silêncio é o
+        // que faz uma importação inteira "sumir": o operador vê os leads na tela
+        // de Clientes, não vê aqui, e nada na tela diz por quê.
+        resumoCargaPainel = {
+            recebidos: mapeados.length,
+            semCelular: mapeados.filter(
+                cliente => somenteNumeros(cliente.celular).length < 10
+            ).length,
+            semCpf: mapeados.filter(cliente => !cliente.id).length
+        };
 
         // O modal de proposta e o WhatsApp leem a lista global do Painel.
         clientes = painelClientes;
@@ -941,17 +1149,65 @@ async function carregarPainel(registrosPreCarregados){
 }
 
 
+// Clientes que a API devolveu e a regra de entrada barrou. Sem isto, a única
+// pista de que existem mais clientes na base é abrir a tela de Clientes e
+// contar as linhas — foi assim que uma importação inteira pareceu ter sumido.
+function textoDescartadosPainel(){
+
+    const fora = resumoCargaPainel.recebidos - painelClientes.length;
+
+    if(fora <= 0) return "";
+
+    const motivos = [];
+
+    if(resumoCargaPainel.semCelular){
+        motivos.push(resumoCargaPainel.semCelular + " sem celular");
+    }
+
+    if(resumoCargaPainel.semCpf){
+        motivos.push(resumoCargaPainel.semCpf + " sem CPF");
+    }
+
+    return fora + (fora === 1 ? " cliente da base não entra aqui" :
+        " clientes da base não entram aqui") +
+        (motivos.length ? " (" + motivos.join(", ") + ")" : "") + ".";
+
+}
+
+
+// Um registro sem data de criação não casa com dia nenhum e só aparece em
+// "Todos" — dito na tela, porque o filtro padrão é "Hoje" e sozinho ele faz
+// esses leads parecerem inexistentes.
+function textoSemDataPainel(){
+
+    if(!diaAlvoPainel()) return "";
+
+    const semData = painelClientes.filter(cliente => !diaDoCliente(cliente)).length;
+
+    if(!semData) return "";
+
+    return semData + (semData === 1
+        ? " lead veio sem data de criação e só aparece em \"Todos\"."
+        : " leads vieram sem data de criação e só aparecem em \"Todos\".");
+
+}
+
+
 function atualizarResumoPainel(){
 
     const total = painelClientes.length;
     const exibidos = clientesFiltradosPainel().length;
     const rotulo = rotuloFiltroPainel();
 
+    const descartados = textoDescartadosPainel();
+
     if(!total){
 
+        // A oferta não é mais exigida: se a lista está vazia, ou a base está
+        // vazia ou nenhum cliente tem celular discável.
         mostrarAvisoPainel(
-            "Nenhum lead com celular cadastrado — entram aqui os clientes com " +
-            "oferta e os leads importados por planilha.",
+            "Nenhum cliente com celular cadastrado — entram aqui todos os " +
+            "clientes da base com celular, com oferta ou sem. " + descartados,
             "info"
         );
 
@@ -961,18 +1217,34 @@ function atualizarResumoPainel(){
 
     const recorte = rotulo +
         (somenteNaoContatados ? " · só não contatados" : "") +
-        (somenteImportados ? " · só da última importação" : "");
+        (somenteImportados ? " · só da última importação" : "") +
+        (somenteComOferta ? " · só com oferta" : "");
 
     if(!exibidos){
 
-        // O lote importado só fica de fora daqui por falta de celular: a oferta
-        // deixou de ser exigida para quem veio de planilha.
+        // Só há um motivo para um lead do lote não estar aqui: falta de celular.
         if(somenteImportados){
 
             mostrarAvisoPainel(
                 "Nenhum lead da última importação veio com celular discável, " +
                 "então não há quem contatar. " +
-                'Toque em "Importados agora" para voltar à lista completa.',
+                'Toque em "Importados agora" para voltar à lista completa. ' +
+                descartados,
+                "info"
+            );
+
+            return;
+
+        }
+
+        // Com o filtro de oferta ligado, mandar tocar em "Todos" (que é o de
+        // data) não resolveria nada — o controle que esvaziou a lista é outro.
+        if(somenteComOferta){
+
+            mostrarAvisoPainel(
+                "Nenhum cliente em " + recorte + " — as consultas bancárias " +
+                "ainda não devolveram oferta para este recorte. " +
+                'Toque em "Com oferta" para ver a lista inteira. ' + descartados,
                 "info"
             );
 
@@ -982,7 +1254,8 @@ function atualizarResumoPainel(){
 
         mostrarAvisoPainel(
             "Nenhum lead em " + recorte + ". " +
-            'Toque em "Todos" para ver os ' + total + " da lista.",
+            'Toque em "Todos" para ver os ' + total + " da lista. " +
+            textoSemDataPainel() + " " + descartados,
             "info"
         );
 
@@ -1000,7 +1273,9 @@ function atualizarResumoPainel(){
         " · " + recorte +
         (semOferta ? " · " + semOferta + " ainda sem oferta" : "") +
         (somenteNaoContatados ? "" : " · " + contatados + " já contatado" +
-            (contatados === 1 ? "" : "s")),
+            (contatados === 1 ? "" : "s")) +
+        (descartados ? ". " + descartados : "") +
+        (textoSemDataPainel() ? " " + textoSemDataPainel() : ""),
         "info"
     );
 

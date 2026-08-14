@@ -687,6 +687,154 @@ function renderizarCards(){
 // PRIMEIRO CONTATO
 // =========================
 
+// Enum do servidor no campo `contatoStatus`.
+//
+// Abrir a conversa pelo botão do WhatsApp (ou do Telegram) grava CONTATADO.
+// ENVIADO fica para quem gravar de fora do app; aqui ele só é lido, e conta
+// como já abordado igual ao 3. A sincronização nunca rebaixa: só sobe.
+const CONTATO_STATUS = {
+    NAO_CONTATADO: 1,
+    ENVIADO: 2,
+    CONTATADO: 3
+};
+
+const NOMES_CONTATO_STATUS = {
+    naocontatado: CONTATO_STATUS.NAO_CONTATADO,
+    enviado: CONTATO_STATUS.ENVIADO,
+    contatado: CONTATO_STATUS.CONTATADO
+};
+
+
+// Aceita número e texto: o mesmo enum pode chegar como 2 ou como "Enviado",
+// conforme a serialização. Desconhecido vale 0, que é menor que tudo e faz o
+// app tratar o registro como ainda não abordado.
+function numeroContatoStatus(valor){
+
+    if(valor === undefined || valor === null || valor === "") return 0;
+
+    const numero = Number(valor);
+
+    if(!isNaN(numero)) return numero;
+
+    const chave = String(valor).normalize("NFD")
+        .replace(/[̀-ͯ]/g,"")
+        .toLowerCase()
+        .replace(/[\s_-]+/g,"");
+
+    return NOMES_CONTATO_STATUS[chave] || 0;
+
+}
+
+
+// Já abordado: ENVIADO e CONTATADO contam igual. O chip "Não contatados" existe
+// para achar quem ninguém procurou ainda, e não para separar os dois.
+function foiAbordado(valor){
+
+    return numeroContatoStatus(valor) >= CONTATO_STATUS.ENVIADO;
+
+}
+
+
+// Confirmação local de que o servidor já registrou este CPF. Sem ela, toda
+// reabertura da conversa repetiria a chamada quando o /clientes não devolve o
+// campo de volta — e a marca precisa sobreviver ao F5.
+// Estrito no CONTATADO: um registro parado em ENVIADO ainda precisa subir para
+// 3 no próximo clique, e sair por aqui como "já sincronizado" o congelaria no 2.
+function contatoJaSincronizado(id){
+
+    return numeroContatoStatus(localStorage.getItem("contato_status_" + id)) >=
+        CONTATO_STATUS.CONTATADO;
+
+}
+
+
+// Procura o registro com o id da API. O Painel alimenta `clientes`; a tela de
+// Clientes, `clientesApi`. Sem o id não há rota para chamar.
+function clienteComIdApi(id){
+
+    const listas = [
+        typeof clientes !== "undefined" && Array.isArray(clientes) ? clientes : [],
+        typeof clientesApi !== "undefined" && Array.isArray(clientesApi) ? clientesApi : []
+    ];
+
+    for(const lista of listas){
+
+        const achado = lista.find(
+            cliente => cliente && cliente.id === id && cliente.idApi != null
+        );
+
+        if(achado) return achado;
+
+    }
+
+    return null;
+
+}
+
+
+// Avisa o servidor que o cliente foi abordado: contatoStatus -> Contatado (3).
+//
+// NÃO é esperado com await de propósito. O window.open da conversa precisa
+// acontecer dentro do gesto de clique, e segurar a mão do operador esperando a
+// rede faria o bloqueador de pop-up comer a janela do WhatsApp. O contato local
+// já foi gravado; se o servidor recusar, o toast avisa que os dois divergiram.
+function sincronizarContatoNaApi(id){
+
+    if(!id || contatoJaSincronizado(id)) return;
+
+    const cliente = clienteComIdApi(id);
+
+    if(!cliente){
+
+        console.warn(
+            "contatoStatus não enviado: cliente " + id +
+            " não está em memória com id da API."
+        );
+
+        return;
+
+    }
+
+    const atual = numeroContatoStatus(cliente.contatoStatus);
+
+    // Já em CONTATADO no servidor: só falta a marca local. Quem estiver em
+    // ENVIADO ainda sobe para 3 — o caminho só vai para cima.
+    if(atual >= CONTATO_STATUS.CONTATADO){
+
+        localStorage.setItem("contato_status_" + id, String(atual));
+
+        return;
+
+    }
+
+    apiAtualizarContatoStatus(
+        typeof identificadorUrl === "function" ? identificadorUrl(cliente) : cliente.idApi,
+        CONTATO_STATUS.CONTATADO,
+        cliente.bruto
+    )
+        .then(()=>{
+
+            cliente.contatoStatus = CONTATO_STATUS.CONTATADO;
+
+            localStorage.setItem("contato_status_" + id, String(CONTATO_STATUS.CONTATADO));
+
+        })
+        .catch(erro=>{
+
+            // O operador precisa saber que o CRM e o servidor discordam.
+            notificar(
+                "Conversa aberta, mas o servidor não registrou o contato: " +
+                erro.message,
+                "erro"
+            );
+
+            console.error("Falha ao atualizar contatoStatus:", erro);
+
+        });
+
+}
+
+
 // Monta o texto da abordagem e registra o contato. Fica separado da abertura
 // porque WhatsApp e Telegram mandam a mesma mensagem e marcam o mesmo
 // histórico — só o canal muda.
@@ -694,6 +842,10 @@ function textoDeContato(nome, id){
 
     const primeiroNome = String(nome || "").trim().split(/\s+/)[0];
     const chave = "contato_inicial_" + id;
+
+    // Fora do if: contato registrado antes desta função existir nunca chegou ao
+    // servidor, e a próxima abordagem é a chance de acertar o cadastro.
+    sincronizarContatoNaApi(id);
 
     if(localStorage.getItem(chave) === "sim"){
 

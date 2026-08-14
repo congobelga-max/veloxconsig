@@ -47,7 +47,14 @@ function mapearClienteDaApi(registro){
 
         atualizadoEm: registro.updatedAtUtc || registro.createdAtUtc || "",
 
-        // A API não tem status: ele é local, gravado por CPF.
+        // Registro cru, para uma atualização parcial poder devolver o cadastro
+        // inteiro se a rota substituir o recurso.
+        bruto: registro,
+
+        // Status de contato do servidor (1 não contatado, 2 contatado).
+        contatoStatus: registro.contatoStatus,
+
+        // A API não tem status de margem: esse é local, gravado por CPF.
         status: localStorage.getItem("status_" + idLocal) || "nao"
 
     };
@@ -57,12 +64,22 @@ function mapearClienteDaApi(registro){
 
 function mapearClienteParaApi(cliente){
 
-    return {
+    const dados = {
         cpf: normalizarCpf(cliente.cpf),
         nome: cliente.nome,
         celular: somenteNumeros(cliente.celular),
         email: cliente.email
     };
+
+    // Vai junto quando o registro já traz: se o PUT substitui o recurso,
+    // omiti-lo devolveria o cliente para "não contatado" a cada edição de
+    // cadastro — apagando um trabalho que não tem nada a ver com este
+    // formulário. O campo não é editável aqui, só preservado.
+    if(cliente.contatoStatus !== undefined && cliente.contatoStatus !== null){
+        dados.contatoStatus = cliente.contatoStatus;
+    }
+
+    return dados;
 
 }
 
@@ -647,18 +664,20 @@ async function confirmarExclusaoCliente(idApi){
 // SINCRONIZAÇÃO COM O PAINEL
 // O Painel lê a própria API (painel.js), então sincronizar é recarregá-lo e
 // levar o operador até lá. Vai sempre a lista completa — não o recorte que
-// estiver na tabela de Clientes —, e o Painel aplica o critério dele: só
-// entra quem tem oferta e celular.
+// estiver na tabela de Clientes —, e o Painel aplica o critério dele: entra
+// quem tem celular discável e CPF.
 // ===============================
 
 function sincronizarPainel(){
 
     // Sem isto o Painel abriria no filtro "Hoje" e pareceria vazio: quem foi
-    // cadastrado em outro dia sumiria logo depois de sincronizar. O recorte da
-    // última importação sai pelo mesmo motivo.
+    // cadastrado em outro dia sumiria logo depois de sincronizar. Os recortes
+    // da última importação e de oferta saem pelo mesmo motivo — sincronizar
+    // deve mostrar o que veio, não o que sobrou de um filtro anterior.
     filtroDataPainel = "todos";
     dataEscolhidaPainel = "";
     somenteImportados = false;
+    somenteComOferta = false;
 
     const entrada = document.getElementById("dataPainel");
 

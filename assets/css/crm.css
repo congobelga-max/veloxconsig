@@ -670,6 +670,24 @@ body{
     color:#fff;
 }
 
+/* Recorte de quem já tem oferta — mesma natureza dos dois acima: soma ao
+   filtro de data em vez de substituí-lo. Este nunca fica oculto, porque a
+   contagem em zero também é informação. */
+.chipOferta{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    background:#fff;
+    border:1px dashed #e0b473;
+    color:#8a5a12;
+}
+
+.chipOferta.ativo{
+    background:#8a5a12;
+    border-color:#8a5a12;
+    color:#fff;
+}
+
 
 /* ===============================
    MARCA DE LEAD RECÉM-IMPORTADO
@@ -705,9 +723,17 @@ body{
     white-space:nowrap;
 }
 
+/* Enviado (contatoStatus 2): estado intermediário, gravado fora do app. */
 .contatoFeito{
     background:#d8f5e3;
     color:#136b38;
+}
+
+/* Contatado (3): o que o botão de WhatsApp/Telegram grava. Cor cheia para
+   destacar do "Enviado" na mesma coluna. */
+.contatoRespondido{
+    background:#136b38;
+    color:#fff;
 }
 
 .contatoPendente{
@@ -736,10 +762,23 @@ body{
     white-space:nowrap;
 }
 
-/* Planilha é o que o operador acabou de trazer para trabalhar. */
-.origemPlanilha{
+/* Um estilo por valor do enum `origem` do servidor: Importacao, Webhook, Api.
+   .origemBase é o caso sem origem informada — e também o do valor que este app
+   ainda não conhece, que aparece cru na coluna. */
+
+.origemImportacao{
     background:#e3ecff;
     color:#1b3f9c;
+}
+
+.origemWebhook{
+    background:#f3e6ff;
+    color:#5b21a8;
+}
+
+.origemApi{
+    background:#e0f2f1;
+    color:#00695c;
 }
 
 .origemBase{

@@ -26,9 +26,9 @@ let analiseImportacao = null;
 // - `ultima_importacao` é só o último lote: alimenta o chip "Importados agora",
 //   o selo "novo" e o resumo do envio. É substituída a cada importação.
 // - `leads_importados` acumula todo CPF que já entrou por planilha, com a data.
-//   É a que decide quem aparece no Painel sem oferta, e por isso não pode ser
-//   substituída: trocá-la faria a leva anterior desaparecer do Painel no envio
-//   seguinte, que é justamente o trabalho que o operador ainda não terminou.
+//   É a que alimenta a coluna "Origem" do Painel, e por isso não pode ser
+//   substituída: trocá-la faria toda a leva anterior passar a se dizer da base,
+//   apagando o histórico de como cada cliente chegou ali.
 // ===============================
 
 const CHAVE_ULTIMA_IMPORTACAO = "ultima_importacao";
@@ -65,8 +65,8 @@ function lerLeadsImportados(){
 }
 
 
-// Chamado antes de qualquer contagem: é ele que faz o lead recém-criado passar
-// pela regra de entrada do Painel mesmo sem oferta nenhuma.
+// Marca a procedência de cada CPF recém-criado: é daqui que a coluna "Origem"
+// do Painel tira o selo "Planilha" e a data da importação.
 function registrarLeadsImportados(novos, quando){
 
     novos.forEach(registro=>{
@@ -93,7 +93,7 @@ function registrarLeadsImportados(novos, quando){
 }
 
 
-// Usado pela regra de entrada do Painel (painel.js). O CPF já vem normalizado
+// Usado pela coluna "Origem" do Painel (painel.js). O CPF já vem normalizado
 // de lá — é a mesma chave local usada no localStorage do operador.
 function ehLeadImportado(cpf){
 
@@ -184,10 +184,9 @@ function novosPorDataDeCriacao(registros, momento){
 }
 
 
-// Quantos dos novos passam pela regra do Painel. Lead importado entra sem
-// oferta, então o que sobra de fora é quem veio sem celular discável — e é
-// esse número que explica a tela.
-// Só vale depois de registrarLeadsImportados(): a regra consulta o registro.
+// Quantos dos novos passam pela regra do Painel. A regra não exige oferta de
+// ninguém, então o único jeito de ficar de fora é vir sem celular discável — e
+// é esse número que explica a tela.
 function quantosEntramNoPainel(novos){
 
     if(typeof mapearClientePainel !== "function") return null;
@@ -201,8 +200,8 @@ function registrarImportacao(novos, arquivo, porData){
 
     const quando = new Date().toISOString();
 
-    // Primeiro o acumulado, depois a contagem: é ele que faz estes leads
-    // passarem pela regra de entrada do Painel sem oferta.
+    // O acumulado primeiro: é a procedência destes CPFs, e o Painel já pode
+    // ser redesenhado a qualquer momento depois daqui.
     registrarLeadsImportados(novos, quando);
 
     gravarUltimaImportacao({

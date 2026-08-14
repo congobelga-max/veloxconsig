@@ -242,6 +242,44 @@ async function apiAtualizarCliente(idApi, dados){
 }
 
 
+// Atualiza só o status de contato do cliente (contatoStatus 1 -> 2).
+//
+// PATCH é o verbo do envio parcial: se esta rota substituir o recurso inteiro,
+// um PUT levando apenas este campo apagaria nome, celular e e-mail do cadastro.
+// Só quando a API responde que não conhece PATCH (404/405/501) o envio é
+// refeito como PUT — e aí devolvendo o registro completo que ela mesma mandou,
+// nunca um corpo pela metade.
+async function apiAtualizarContatoStatus(idApi, status, registroBruto){
+
+    const url = AUTH_CONFIG.API_CLIENTES + "/" + encodeURIComponent(idApi);
+
+    try{
+
+        return await requisitarApi(url,{
+            metodo:"PATCH",
+            corpo:{contatoStatus: status}
+        });
+
+    }catch(erro){
+
+        const semPatch = erro.status === 404 ||
+            erro.status === 405 ||
+            erro.status === 501;
+
+        // Sem o registro cru não há o que devolver: melhor propagar o erro do
+        // que arriscar um PUT incompleto.
+        if(!semPatch || !registroBruto) throw erro;
+
+        return await requisitarApi(url,{
+            metodo:"PUT",
+            corpo: Object.assign({}, registroBruto, {contatoStatus: status})
+        });
+
+    }
+
+}
+
+
 async function apiExcluirCliente(idApi){
 
     await requisitarApi(
