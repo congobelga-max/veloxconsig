@@ -131,6 +131,9 @@ function mapearClientePainel(registro){
         // Valor cru do campo de origem do servidor, quando ele vem.
         origemApi: origemDaApi(registro),
 
+        // Arquivo que criou o lead, quando a origem é importação.
+        origemArquivo: registro.origemArquivo || "",
+
         // Resolvidos por atualizarOrigensPainel() (servidor primeiro, registro
         // local depois). Já nascem preenchidos porque a coluna lê o campo
         // direto: desenhar antes da primeira atualização deixaria a célula vazia.
@@ -411,6 +414,7 @@ function tituloOrigem(cliente){
         return (definicao
                 ? definicao.descricao
                 : "Origem não reconhecida por este app") +
+            (cliente.origemArquivo ? ": " + cliente.origemArquivo : "") +
             ' — origem="' + cliente.origemApi + '" no /clientes' +
             (quando ? " · importado neste navegador em " + quando : "");
 

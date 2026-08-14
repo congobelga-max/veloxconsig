@@ -15,9 +15,9 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
-<link rel="stylesheet" href="assets/css/login.css?v=20260814j">
+<link rel="stylesheet" href="assets/css/login.css?v=20260814l">
 
-<script src="assets/js/auth.js?v=20260814j"></script>
+<script src="assets/js/auth.js?v=20260814l"></script>
 <script>
     // Quem já tem sessão ativa não precisa ver o formulário.
     if(sessaoValida()) window.location.replace(AUTH_CONFIG.PAGINA_APP);
@@ -97,7 +97,7 @@
     VeloxConsig CRM Mobile
 </footer>
 
-<script src="assets/js/login.js?v=20260814j"></script>
+<script src="assets/js/login.js?v=20260814l"></script>
 
 </body>
 </html>

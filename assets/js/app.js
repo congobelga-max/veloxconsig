@@ -698,7 +698,18 @@ const CONTATO_STATUS = {
     CONTATADO: 3
 };
 
+// Como a API escreve cada membro. Confirmado no retorno de /clientes:
+// `contatoStatus: "Nenhum"`, no mesmo estilo de `ofertasStatus: "NaoConsultado"`
+// e `origem: "Importacao"` — enum serializado como texto PascalCase.
+// O envio usa exatamente esta grafia; mandar o número 3 não pegava.
+const CONTATO_STATUS_TEXTO = {
+    1: "Nenhum",
+    2: "Enviado",
+    3: "Contatado"
+};
+
 const NOMES_CONTATO_STATUS = {
+    nenhum: CONTATO_STATUS.NAO_CONTATADO,
     naocontatado: CONTATO_STATUS.NAO_CONTATADO,
     enviado: CONTATO_STATUS.ENVIADO,
     contatado: CONTATO_STATUS.CONTATADO
@@ -793,15 +804,32 @@ function sincronizarContatoNaApi(id){
     // conversa. A tela o exibe convertido para o fuso local.
     const quandoUtc = new Date().toISOString();
 
-    cliente.contatoStatus = CONTATO_STATUS.CONTATADO;
+    // Mesma forma que a API usa, para o registro em memória não ficar com um
+    // formato que nenhuma releitura devolveria.
+    cliente.contatoStatus = CONTATO_STATUS_TEXTO[CONTATO_STATUS.CONTATADO];
     cliente.contatadoEm = quandoUtc;
 
-    apiAtualizarContato(
-        typeof identificadorUrl === "function" ? identificadorUrl(cliente) : cliente.idApi,
-        CONTATO_STATUS.CONTATADO,
-        quandoUtc,
-        cliente.bruto
-    )
+    const rota = typeof identificadorUrl === "function"
+        ? identificadorUrl(cliente)
+        : cliente.idApi;
+
+    // Texto, não número: é a forma em que a própria API devolve o campo.
+    const statusEnviado = CONTATO_STATUS_TEXTO[CONTATO_STATUS.CONTATADO];
+
+    console.info("contato →", {
+        rota: AUTH_CONFIG.API_CLIENTES + "/" + rota,
+        contatoStatus: statusEnviado,
+        contatadoEmUtc: quandoUtc
+    });
+
+    apiAtualizarContato(rota, statusEnviado, quandoUtc, cliente.bruto)
+        .then(retorno=>{
+
+            console.info("contato ← resposta:", retorno);
+
+            return conferirContatoGravado(cliente, id);
+
+        })
         .catch(erro=>{
 
             cliente.contatoStatus = anterior;
@@ -817,9 +845,68 @@ function sincronizarContatoNaApi(id){
 
             console.error("Falha ao atualizar contatoStatus:", erro);
 
-            if(typeof desenharPainel === "function") desenharPainel();
+            redesenharContato();
 
         });
+
+}
+
+
+// Relê o cliente depois da gravação e adota o que o servidor devolveu.
+//
+// Existe porque uma resposta 200 não prova gravação: se a rota de atualização
+// não conhecer `contatoStatus` / `contatadoEmUtc`, ela aceita a requisição,
+// descarta os dois campos e responde OK — e a tela ficaria mostrando um contato
+// que o banco não tem. Confirmado o contrato do lado do servidor, esta releitura
+// pode sair.
+function conferirContatoGravado(cliente, id){
+
+    return apiListarClientes({cpf: id})
+        .then(lista=>{
+
+            const fresco = lista.find(
+                registro => normalizarCpf((registro && registro.cpf) || "") === id
+            );
+
+            // Não deu para conferir: o que está na tela continua valendo.
+            if(!fresco) return;
+
+            cliente.bruto = fresco;
+            cliente.contatoStatus = fresco.contatoStatus;
+            cliente.contatadoEm = fresco.contatadoEmUtc || "";
+
+            if(foiAbordado(fresco.contatoStatus)) return;
+
+            console.error(
+                "A API aceitou o PUT e não gravou o contato. Registro relido:",
+                fresco
+            );
+
+            notificar(
+                "O servidor respondeu OK mas não gravou o contato: o campo " +
+                "contatoStatus voltou como " + (fresco.contatoStatus == null
+                    ? "vazio" : fresco.contatoStatus) +
+                ". A rota de atualização de clientes provavelmente não aceita " +
+                "esse campo.",
+                "erro"
+            );
+
+            redesenharContato();
+
+        })
+        .catch(erro=>{
+
+            // Falhar a conferência não desfaz nada: a gravação foi aceita.
+            console.warn("Não foi possível reler o cliente:", erro.message);
+
+        });
+
+}
+
+
+function redesenharContato(){
+
+    if(typeof desenharPainel === "function") desenharPainel();
 
 }
 
