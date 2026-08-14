@@ -735,22 +735,9 @@ function foiAbordado(valor){
 }
 
 
-// Confirmação local de que o servidor já registrou este CPF. Sem ela, toda
-// reabertura da conversa repetiria a chamada quando o /clientes não devolve o
-// campo de volta — e a marca precisa sobreviver ao F5.
-// Estrito no CONTATADO: um registro parado em ENVIADO ainda precisa subir para
-// 3 no próximo clique, e sair por aqui como "já sincronizado" o congelaria no 2.
-function contatoJaSincronizado(id){
-
-    return numeroContatoStatus(localStorage.getItem("contato_status_" + id)) >=
-        CONTATO_STATUS.CONTATADO;
-
-}
-
-
-// Procura o registro com o id da API. O Painel alimenta `clientes`; a tela de
-// Clientes, `clientesApi`. Sem o id não há rota para chamar.
-function clienteComIdApi(id){
+// Procura o registro carregado da API. O Painel alimenta `clientes`; a tela de
+// Clientes, `clientesApi`.
+function clientePorId(id){
 
     const listas = [
         typeof clientes !== "undefined" && Array.isArray(clientes) ? clientes : [],
@@ -759,9 +746,7 @@ function clienteComIdApi(id){
 
     for(const lista of listas){
 
-        const achado = lista.find(
-            cliente => cliente && cliente.id === id && cliente.idApi != null
-        );
+        const achado = lista.find(cliente => cliente && cliente.id === id);
 
         if(achado) return achado;
 
@@ -776,15 +761,18 @@ function clienteComIdApi(id){
 //
 // NÃO é esperado com await de propósito. O window.open da conversa precisa
 // acontecer dentro do gesto de clique, e segurar a mão do operador esperando a
-// rede faria o bloqueador de pop-up comer a janela do WhatsApp. O contato local
-// já foi gravado; se o servidor recusar, o toast avisa que os dois divergiram.
+// rede faria o bloqueador de pop-up comer a janela do WhatsApp.
+//
+// O registro em memória é atualizado antes da resposta para a linha reagir na
+// hora, e volta ao valor anterior se o servidor recusar: sem cópia local, o
+// que a tela mostra tem de ser o que o servidor aceitou.
 function sincronizarContatoNaApi(id){
 
-    if(!id || contatoJaSincronizado(id)) return;
+    if(!id) return;
 
-    const cliente = clienteComIdApi(id);
+    const cliente = clientePorId(id);
 
-    if(!cliente){
+    if(!cliente || cliente.idApi == null){
 
         console.warn(
             "contatoStatus não enviado: cliente " + id +
@@ -795,33 +783,24 @@ function sincronizarContatoNaApi(id){
 
     }
 
-    const atual = numeroContatoStatus(cliente.contatoStatus);
+    const anterior = cliente.contatoStatus;
 
-    // Já em CONTATADO no servidor: só falta a marca local. Quem estiver em
-    // ENVIADO ainda sobe para 3 — o caminho só vai para cima.
-    if(atual >= CONTATO_STATUS.CONTATADO){
+    // Só sobe: quem já está em CONTATADO não tem o que reenviar.
+    if(numeroContatoStatus(anterior) >= CONTATO_STATUS.CONTATADO) return;
 
-        localStorage.setItem("contato_status_" + id, String(atual));
-
-        return;
-
-    }
+    cliente.contatoStatus = CONTATO_STATUS.CONTATADO;
 
     apiAtualizarContatoStatus(
         typeof identificadorUrl === "function" ? identificadorUrl(cliente) : cliente.idApi,
         CONTATO_STATUS.CONTATADO,
         cliente.bruto
     )
-        .then(()=>{
-
-            cliente.contatoStatus = CONTATO_STATUS.CONTATADO;
-
-            localStorage.setItem("contato_status_" + id, String(CONTATO_STATUS.CONTATADO));
-
-        })
         .catch(erro=>{
 
-            // O operador precisa saber que o CRM e o servidor discordam.
+            cliente.contatoStatus = anterior;
+
+            // O operador precisa saber que a marca não pegou — a tela vai
+            // voltar a mostrar "Não contatado" no próximo desenho.
             notificar(
                 "Conversa aberta, mas o servidor não registrou o contato: " +
                 erro.message,
@@ -829,6 +808,8 @@ function sincronizarContatoNaApi(id){
             );
 
             console.error("Falha ao atualizar contatoStatus:", erro);
+
+            if(typeof desenharPainel === "function") desenharPainel();
 
         });
 
@@ -838,16 +819,21 @@ function sincronizarContatoNaApi(id){
 // Monta o texto da abordagem e registra o contato. Fica separado da abertura
 // porque WhatsApp e Telegram mandam a mesma mensagem e marcam o mesmo
 // histórico — só o canal muda.
+//
+// Quem já foi abordado recebe o texto de retorno, e quem é abordado agora
+// recebe uma das 50 aberturas. Essa decisão vem do `contatoStatus` do servidor:
+// sem cópia local, ela passa a valer em qualquer navegador — e a leitura tem de
+// acontecer ANTES da sincronização, que já sobe o status para CONTATADO.
 function textoDeContato(nome, id){
 
     const primeiroNome = String(nome || "").trim().split(/\s+/)[0];
-    const chave = "contato_inicial_" + id;
 
-    // Fora do if: contato registrado antes desta função existir nunca chegou ao
-    // servidor, e a próxima abordagem é a chance de acertar o cadastro.
+    const cliente = clientePorId(id);
+    const jaAbordado = cliente ? foiAbordado(cliente.contatoStatus) : false;
+
     sincronizarContatoNaApi(id);
 
-    if(localStorage.getItem(chave) === "sim"){
+    if(jaAbordado){
 
         return "Oi, " + primeiroNome + "! Passando para dar continuidade ao nosso " +
             "contato sobre as condições de crédito disponíveis para você. 😊\n\n" +
@@ -857,17 +843,9 @@ function textoDeContato(nome, id){
 
     // Uma das 50 redações de mensagens.js: leads seguidos não recebem o
     // mesmo texto, e o cliente que já foi abordado sempre recebe o dele.
-    const mensagem = mensagemInicial(primeiroNome, id);
-
-    const agora = new Date();
-
-    localStorage.setItem(chave, "sim");
-    localStorage.setItem("contato_data_" + id, agora.toLocaleDateString("pt-BR"));
-    localStorage.setItem("contato_hora_" + id, agora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}));
-
-    atualizarDashboard();
-
-    return mensagem;
+    // O rodízio continua no localStorage — é preferência de redação desta
+    // máquina, não estado do cliente, e não existe campo para ele na API.
+    return mensagemInicial(primeiroNome, id);
 
 }
 
@@ -1107,10 +1085,11 @@ function somenteNumeros(texto){
 
 // Cliente que já recebeu o primeiro contato mas ainda não foi consultado.
 // Mesma regra usada pelo contador do dashboard e pelo filtro "aguardando".
+// O contato vem do servidor (`contatoStatus`); só a consulta de margem
+// continua local, porque a API não tem esse campo.
 function aguardandoResposta(cliente){
 
-    return cliente.status === "nao" &&
-        localStorage.getItem("contato_inicial_" + cliente.id) === "sim";
+    return cliente.status === "nao" && foiAbordado(cliente.contatoStatus);
 
 }
 
@@ -1187,6 +1166,8 @@ function migrarHistoricoCpf(idAntigo, idNovo){
 
     const prefixos = [
         "status_", "data_", "hora_",
+        // O contato saiu do localStorage e vive no `contatoStatus` do servidor;
+        // estes prefixos ficam só para mover o que máquinas antigas gravaram.
         "contato_inicial_", "contato_data_", "contato_hora_",
         "classificacao_", "classificacao_texto_",
         // Sem migrar, o cliente receberia uma segunda mensagem de abertura

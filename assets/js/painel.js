@@ -107,11 +107,10 @@ function mapearClientePainel(registro){
 
         criadoEm: registro.createdAtUtc || registro.criadoEm || "",
 
-        // Preenchido por atualizarContatosPainel(): o primeiro contato é local
-        // e muda enquanto a lista está na tela.
+        // Derivados de `contatoStatus` por atualizarContatosPainel(): o clique
+        // no WhatsApp muda o status com a lista já na tela.
         contatado: false,
-        contatoData: "",
-        contatoHora: "",
+        contatoNivel: 0,
 
         // Preenchido por atualizarImportadosPainel(), pelo mesmo motivo: uma
         // importação troca a lista com o Painel já montado.
@@ -217,40 +216,25 @@ function diaAlvoPainel(){
 
 // ===============================
 // PRIMEIRO CONTATO
-// O servidor guarda `contatoStatus` (1 Não contatado, 2 Enviado, 3 Contatado)
-// e o app grava o 3 ao abrir a conversa — sincronizarContatoNaApi(), em app.js.
-// `contato_inicial_<cpf>` continua sendo gravado por abrirWhatsapp() e é local: a lista
-// precisa relê-lo antes de cada desenho, senão o lead que acabou de ser
-// abordado continua aparecendo como não contatado.
+// Fonte única: `contatoStatus` do servidor (1 Não contatado, 2 Enviado,
+// 3 Contatado). O app grava o 3 ao abrir a conversa —
+// sincronizarContatoNaApi(), em app.js —, atualizando o registro em memória na
+// hora, e é isso que a linha lê no desenho seguinte.
+//
+// Não há mais cópia no localStorage. Ela existia para a marca sobreviver ao F5,
+// e o preço era este: o mesmo cliente aparecia contatado numa máquina e não
+// contatado na outra, porque localStorage é por origem — foi o que se viu entre
+// o teste local e a produção.
 // ===============================
 
 function atualizarContatosPainel(){
 
     painelClientes.forEach(cliente=>{
 
-        const localMarcado =
-            localStorage.getItem("contato_inicial_" + cliente.id) === "sim";
-
-        const doServidor = numeroContatoStatus(cliente.contatoStatus);
-
-        // A chave local vale como CONTATADO — é o que o clique manda ao
-        // servidor —, e ela é gravada no instante do toque, antes de a chamada
-        // voltar: é o que faz a linha reagir na hora.
-        cliente.contatoNivel = Math.max(
-            doServidor,
-            localMarcado ? CONTATO_STATUS.CONTATADO : 0
-        );
+        cliente.contatoNivel = numeroContatoStatus(cliente.contatoStatus);
 
         // Uma dimensão só para o chip e para o filtro: abordado ou não.
         cliente.contatado = cliente.contatoNivel >= CONTATO_STATUS.ENVIADO;
-
-        cliente.contatoData = cliente.contatado
-            ? (localStorage.getItem("contato_data_" + cliente.id) || "")
-            : "";
-
-        cliente.contatoHora = cliente.contatado
-            ? (localStorage.getItem("contato_hora_" + cliente.id) || "")
-            : "";
 
     });
 
@@ -481,21 +465,16 @@ function classeContato(cliente){
 }
 
 
-// Três estados, três textos. A data e a hora são locais, então só aparecem no
-// navegador onde o contato foi feito.
+// Três estados, três textos — todos vindos do servidor. Não há data aqui: o
+// carimbo do contato era local e saiu junto com o resto. Quando a API expuser
+// um campo de data para isso, é aqui que ele entra.
 function textoContatoPainel(cliente){
 
     if(!cliente.contatado) return "Não contatado";
 
-    const quando = [cliente.contatoData, cliente.contatoHora]
-        .filter(Boolean)
-        .join(" ");
-
-    if(cliente.contatoNivel >= CONTATO_STATUS.CONTATADO){
-        return quando ? "Contatado em " + quando : "Contatado";
-    }
-
-    return "Enviado";
+    return cliente.contatoNivel >= CONTATO_STATUS.CONTATADO
+        ? "Contatado"
+        : "Enviado";
 
 }
 
