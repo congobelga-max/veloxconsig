@@ -930,9 +930,12 @@ function textoDeContato(nome, id){
 
     if(jaAbordado){
 
-        return "Oi, " + primeiroNome + "! Passando para dar continuidade ao nosso " +
-            "contato sobre as condições de crédito disponíveis para você. 😊\n\n" +
-            "Caso tenha interesse, posso verificar as opções atualizadas e te enviar por aqui.";
+        // Mesmo tom incisivo das aberturas de mensagens.js: retoma a
+        // solicitação como um fato e fecha assumindo a continuidade.
+        return "Oi, " + primeiroNome + "! Aqui é a Carol, da Velox Consig.\n\n" +
+            "Sua solicitação de empréstimo consignado CLT continua em aberto e a " +
+            "margem segue liberada para contratação.\n\n" +
+            "Vamos dar continuidade?";
 
     }
 

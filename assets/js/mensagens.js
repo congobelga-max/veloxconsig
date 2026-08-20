@@ -5,109 +5,119 @@
 // são o que faz o WhatsApp marcar o número como spam.
 //
 // {nome} é trocado pelo primeiro nome do cliente.
+//
+// TOM: incisivo. As três partes são fixas e nenhuma redação pode perder uma
+// delas — é isso que separa esta lista da versão anterior, que pedia licença
+// ("posso te enviar?", "se tiver interesse") e morria sem resposta:
+//   1. quem fala — Carol, da Velox Consig;
+//   2. o motivo — o lead pediu uma simulação de consignado CLT e a margem
+//      está liberada. O lead veio de um formulário de simulação, então a
+//      retomada é um fato, não uma suposição;
+//   3. o fechamento — assume a continuidade ("vamos dar continuidade?",
+//      "confirma para eu seguir?"), nunca pergunta se pode começar.
 // ===============================
 
 const MENSAGENS_INICIAIS = [
 
-    "Olá, {nome}! Tudo bem? 😊\n\nAqui é a Carol, da Velox Consig.\n\nIdentificamos que você possui margem disponível para contratação de crédito para trabalhador CLT, com desconto das parcelas direto na folha.\n\nPosso te enviar o valor disponível e uma simulação das parcelas?",
+    "Oi, {nome}!\n\nMe chamo Carol e trabalho na Velox Consig.\n\nVi que você solicitou uma simulação para empréstimo consignado CLT. Sua margem está liberada para contratação.\n\nVamos dar continuidade à solicitação?",
 
-    "Oi, {nome}, tudo certo?\n\nMe chamo Carol e falo pela Velox Consig.\n\nSeu CPF aparece com margem liberada para crédito consignado CLT — aquele com desconto em folha, sem boleto para pagar.\n\nQuer que eu veja quanto dá para liberar no seu caso?",
+    "Olá, {nome}!\n\nAqui é a Carol, da Velox Consig.\n\nSua solicitação de simulação de consignado CLT chegou até mim e a margem já está liberada no seu CPF.\n\nPodemos seguir com a contratação?",
 
-    "{nome}, boa tarde! 😊\n\nSou a Carol, da Velox Consig.\n\nTrabalhamos com crédito consignado para quem tem carteira assinada: a parcela sai direto do salário e a taxa costuma ser bem menor que a do cartão.\n\nPosso fazer uma simulação rápida para você?",
+    "{nome}, tudo bem?\n\nCarol falando, da Velox Consig.\n\nRecebi seu pedido de simulação para crédito consignado CLT. A margem está aprovada e disponível para uso.\n\nVamos dar andamento?",
 
-    "Olá, {nome}!\n\nCarol aqui, da Velox Consig.\n\nFiz uma consulta de margem no seu nome e apareceu saldo disponível para consignado CLT.\n\nTe mando os valores?",
+    "Oi, {nome}!\n\nSou a Carol, da Velox Consig.\n\nVocê pediu uma simulação de consignado CLT e ela já saiu: sua margem está liberada para contratação.\n\nMe confirma que eu sigo com o processo.",
 
-    "Oi, {nome}! 😊\n\nAqui é a Carol, da Velox Consig.\n\nVocê já sabia que, sendo CLT, dá para contratar crédito com desconto direto na folha e juros bem abaixo do cartão e do cheque especial?\n\nPosso te mostrar quanto você teria disponível?",
+    "Olá, {nome}!\n\nCarol aqui, da Velox Consig.\n\nSua simulação de empréstimo consignado CLT foi processada e a margem está livre para contratar.\n\nVamos concluir a sua solicitação?",
 
-    "{nome}, tudo bem?\n\nCarol falando, da Velox Consig.\n\nTenho uma boa notícia: você está elegível para crédito consignado CLT, com parcelas descontadas em folha.\n\nQuer ver os valores e prazos disponíveis?",
+    "{nome}, oi!\n\nMe chamo Carol e sou consultora da Velox Consig.\n\nVi sua solicitação de simulação para consignado CLT. A margem está liberada e o valor pode ser contratado ainda hoje.\n\nSeguimos?",
 
-    "Olá, {nome}! 👋\n\nSou a Carol, da Velox Consig.\n\nEstou entrando em contato porque sua margem para crédito consignado está liberada neste momento.\n\nPosso te enviar a simulação sem compromisso?",
+    "Oi, {nome}!\n\nAqui é a Carol, da Velox Consig.\n\nSua consulta de margem para consignado CLT foi feita e o resultado é positivo: liberada para contratação.\n\nVamos dar continuidade agora?",
 
-    "Oi, {nome}!\n\nAqui é a Carol, da Velox Consig.\n\nFaço atendimento de crédito consignado para trabalhador CLT — o desconto vem na folha, então não tem risco de esquecer a parcela.\n\nQuer que eu consulte quanto está disponível para você?",
+    "Olá, {nome}!\n\nCarol, da Velox Consig.\n\nEstou com a sua solicitação de simulação de consignado CLT em mãos. A margem está liberada.\n\nConfirma para eu já preparar a proposta?",
 
-    "{nome}, oi! Tudo bem? 😊\n\nCarol, da Velox Consig.\n\nSeu perfil está apto a crédito consignado com desconto em folha. Costuma sair bem mais barato que empréstimo comum.\n\nPosso simular e te mandar aqui?",
+    "{nome}, tudo certo?\n\nMe chamo Carol e trabalho na Velox Consig.\n\nVocê solicitou uma simulação de empréstimo consignado CLT e sua margem está aprovada para contratação.\n\nVamos seguir com a solicitação?",
 
-    "Olá, {nome}!\n\nMe chamo Carol e sou consultora da Velox Consig.\n\nVi que você tem margem disponível para crédito consignado CLT.\n\nSe fizer sentido para você, faço a simulação e te envio os valores por aqui. Pode ser?",
+    "Oi, {nome}!\n\nSou a Carol, da Velox Consig.\n\nSeu pedido de simulação para consignado CLT foi analisado e a margem está liberada no seu nome.\n\nMe responde aqui que eu dou continuidade.",
 
-    "Oi, {nome}! 😊\n\nCarol, da Velox Consig, falando.\n\nVocê tem interesse em saber quanto consegue liberar em crédito consignado, com as parcelas saindo direto do salário?\n\nA consulta é rápida e não compromete nada.",
+    "Olá, {nome}!\n\nAqui quem fala é a Carol, da Velox Consig.\n\nA simulação que você solicitou para consignado CLT está pronta e a margem está liberada para contratação.\n\nVamos fechar?",
 
-    "{nome}, bom dia!\n\nAqui é a Carol, da Velox Consig.\n\nSua margem para consignado CLT está liberada. Esse crédito tem parcela fixa e desconto automático em folha.\n\nQuer que eu veja as condições para você?",
+    "{nome}, oi!\n\nCarol, da Velox Consig.\n\nRecebi sua solicitação de crédito consignado CLT. A margem já está disponível e o dinheiro pode cair na conta em pouco tempo.\n\nVamos dar continuidade?",
 
-    "Olá, {nome}! Tudo bem?\n\nSou a Carol, da Velox Consig.\n\nEstou passando para avisar que apareceu margem disponível no seu CPF para crédito consignado de trabalhador CLT.\n\nPosso te mandar quanto dá para liberar?",
+    "Oi, {nome}!\n\nMe chamo Carol e falo pela Velox Consig.\n\nVi que você pediu uma simulação de consignado CLT. Sua margem está liberada para contratação neste momento.\n\nPosso seguir com o seu processo?",
 
-    "Oi, {nome}! 👋\n\nCarol, da Velox Consig.\n\nMuita gente CLT não sabe que tem direito a crédito com desconto em folha e taxa reduzida. Você está nessa lista.\n\nQuer conferir os valores?",
+    "Olá, {nome}!\n\nCarol aqui, consultora da Velox Consig.\n\nSua solicitação de simulação de empréstimo consignado CLT foi aprovada em margem.\n\nVamos dar continuidade à contratação?",
 
-    "{nome}, tudo certo? 😊\n\nAqui é a Carol, da Velox Consig.\n\nConsultei sua margem e ela está positiva para consignado CLT.\n\nSe quiser, te envio agora as opções de parcela e o valor liberado.",
+    "{nome}, tudo bem?\n\nSou a Carol, da Velox Consig.\n\nVocê solicitou a simulação do consignado CLT e ela voltou liberada: margem disponível para contratar.\n\nMe confirma e eu sigo daqui.",
 
-    "Olá, {nome}!\n\nCarol aqui, consultora da Velox Consig.\n\nTrabalho com crédito consignado CLT — parcelas descontadas na folha, sem consulta ao SPC para a maioria dos casos.\n\nPosso simular para você?",
+    "Oi, {nome}!\n\nAqui é a Carol, da Velox Consig.\n\nSua simulação de consignado CLT está concluída e a margem está liberada.\n\nVamos dar continuidade à solicitação hoje?",
 
-    "Oi, {nome}!\n\nSou a Carol, da Velox Consig. 😊\n\nSeu nome apareceu na consulta com margem disponível para crédito consignado.\n\nQuer saber quanto e em quantas vezes?",
+    "Olá, {nome}!\n\nCarol falando, da Velox Consig.\n\nSeu pedido de simulação para empréstimo consignado CLT chegou e a margem está liberada para contratação.\n\nSeguimos com o processo?",
 
-    "{nome}, olá!\n\nCarol falando, da Velox Consig.\n\nEstou entrando em contato sobre uma condição de crédito para quem tem carteira assinada: desconto direto na folha e parcela fixa até o fim.\n\nPosso te mostrar os números?",
+    "{nome}, oi!\n\nMe chamo Carol e trabalho na Velox Consig.\n\nA consulta que você solicitou saiu: margem liberada para consignado CLT.\n\nVamos concluir a contratação?",
 
-    "Olá, {nome}! Tudo bem com você? 😊\n\nAqui é a Carol, da Velox Consig.\n\nVocê tem margem liberada para consignado CLT neste momento. Essa liberação pode mudar de um mês para o outro.\n\nQuer aproveitar e ver a simulação?",
+    "Oi, {nome}!\n\nSou a Carol, da Velox Consig.\n\nVi sua solicitação de simulação para consignado CLT. Sua margem está livre e pronta para uso.\n\nMe responde para eu dar sequência.",
 
-    "Oi, {nome}!\n\nCarol, da Velox Consig.\n\nFaço a parte de crédito consignado para trabalhador CLT. É o tipo de crédito com uma das menores taxas do mercado, justamente porque desconta em folha.\n\nPosso conferir quanto está disponível para você?",
+    "Olá, {nome}!\n\nCarol, da Velox Consig.\n\nSua solicitação de consignado CLT está com a margem liberada para contratação.\n\nVamos dar continuidade agora?",
 
-    "{nome}, tudo bem? 👋\n\nMe chamo Carol e sou da Velox Consig.\n\nIdentifiquei margem disponível no seu CPF para contratação de crédito consignado.\n\nTe envio a simulação?",
+    "{nome}, tudo certo?\n\nAqui é a Carol, da Velox Consig.\n\nRecebi seu pedido de simulação de empréstimo consignado CLT e a margem está aprovada.\n\nConfirma que eu sigo com a proposta?",
 
-    "Olá, {nome}!\n\nCarol, da Velox Consig, tudo bem?\n\nSe precisar organizar as contas, quitar uma dívida cara ou tirar um projeto do papel, o consignado CLT costuma ser a saída mais barata.\n\nPosso ver quanto você tem disponível?",
+    "Oi, {nome}!\n\nMe chamo Carol e sou da Velox Consig.\n\nA simulação de consignado CLT que você solicitou está pronta, com margem liberada para contratação.\n\nVamos dar continuidade?",
 
-    "Oi, {nome}! 😊\n\nAqui é a Carol, da Velox Consig.\n\nSua margem para crédito consignado está ativa. O desconto vem na folha, então é uma parcela só, no dia certo, sem boleto.\n\nQuer ver os valores?",
+    "Olá, {nome}!\n\nCarol aqui, da Velox Consig.\n\nVi que você pediu a simulação do consignado CLT. A margem está liberada e o valor já pode ser contratado.\n\nSeguimos com a sua solicitação?",
 
-    "{nome}, bom te falar! 😊\n\nCarol, da Velox Consig.\n\nVocê aparece elegível para crédito consignado CLT. Consigo verificar o valor liberado e as opções de prazo em poucos minutos.\n\nPosso seguir?",
+    "{nome}, oi!\n\nSou a Carol, da Velox Consig.\n\nSua solicitação de simulação para consignado CLT foi processada: margem liberada.\n\nMe confirma aqui que eu dou andamento.",
 
-    "Olá, {nome}!\n\nSou a Carol, da Velox Consig.\n\nEstou entrando em contato porque nossa consulta apontou margem disponível no seu nome para crédito com desconto em folha.\n\nQuer receber a simulação por aqui mesmo?",
+    "Oi, {nome}!\n\nAqui é a Carol, da Velox Consig.\n\nVocê solicitou uma simulação de crédito consignado CLT e a sua margem está liberada para contratação.\n\nVamos concluir?",
 
-    "Oi, {nome}! Tudo bem?\n\nCarol, consultora da Velox Consig. 👋\n\nO consignado CLT permite parcelas menores e prazos mais longos que o empréstimo pessoal comum.\n\nPosso simular com base na sua margem?",
+    "Olá, {nome}!\n\nCarol, consultora da Velox Consig.\n\nSeu pedido de simulação de consignado CLT foi analisado e sua margem está disponível.\n\nVamos dar continuidade à solicitação?",
 
-    "{nome}, oi!\n\nAqui é a Carol, da Velox Consig.\n\nTenho uma condição de crédito consignado disponível para o seu perfil, com desconto direto na folha de pagamento.\n\nQuer que eu detalhe os valores?",
+    "{nome}, tudo bem?\n\nMe chamo Carol e trabalho na Velox Consig.\n\nSua simulação de empréstimo consignado CLT está pronta e a margem, liberada.\n\nPosso seguir com a contratação?",
 
-    "Olá, {nome}! 😊\n\nCarol falando, da Velox Consig.\n\nVi que você tem saldo de margem para consignado. Muita gente usa para trocar dívida cara por uma parcela menor.\n\nPosso te mostrar como ficaria?",
+    "Oi, {nome}!\n\nSou a Carol, da Velox Consig.\n\nRecebi sua solicitação de consignado CLT. A margem está liberada para contratação imediata.\n\nVamos dar continuidade?",
 
-    "Oi, {nome}!\n\nMe chamo Carol e trabalho na Velox Consig.\n\nSua margem para crédito consignado CLT está liberada para contratação.\n\nSe tiver interesse, faço a simulação agora e te mando aqui.",
+    "Olá, {nome}!\n\nCarol falando, da Velox Consig.\n\nA sua solicitação de simulação de consignado CLT voltou com margem liberada.\n\nMe responde para eu já montar a proposta.",
 
-    "{nome}, tudo bem? 😊\n\nCarol, da Velox Consig.\n\nVocê tem direito a crédito consignado por ser CLT — parcela descontada em folha e taxa bem abaixo das linhas comuns.\n\nQuer ver quanto está disponível no seu caso?",
+    "{nome}, oi!\n\nAqui é a Carol, da Velox Consig.\n\nVi seu pedido de simulação para empréstimo consignado CLT. Margem liberada para contratação.\n\nVamos seguir com o processo?",
 
-    "Olá, {nome}! 👋\n\nAqui é a Carol, da Velox Consig.\n\nEstou passando para te avisar da margem liberada no seu CPF para crédito consignado.\n\nPosso enviar a simulação sem compromisso nenhum?",
+    "Oi, {nome}!\n\nMe chamo Carol e falo pela Velox Consig.\n\nSua solicitação de consignado CLT está aprovada em margem e pronta para contratação.\n\nVamos dar continuidade hoje?",
 
-    "Oi, {nome}!\n\nCarol, da Velox Consig, tudo certo?\n\nO crédito consignado CLT tem uma vantagem simples: como desconta na folha, o banco cobra menos juros.\n\nQuer que eu veja o seu valor disponível?",
+    "Olá, {nome}!\n\nCarol aqui, da Velox Consig.\n\nVocê solicitou uma simulação de consignado CLT e o resultado já saiu: margem liberada.\n\nConfirma para eu seguir com a sua contratação?",
 
-    "{nome}, olá! Tudo bem? 😊\n\nSou a Carol, da Velox Consig.\n\nFiz a consulta da sua margem e ela está positiva. Dá para simular valores e prazos agora mesmo.\n\nPosso te enviar?",
+    "{nome}, tudo certo?\n\nSou a Carol, da Velox Consig.\n\nSua simulação de empréstimo consignado CLT foi concluída e a margem está disponível para uso.\n\nVamos dar continuidade à solicitação?",
 
-    "Olá, {nome}!\n\nCarol aqui, da Velox Consig.\n\nAtendo trabalhadores CLT com crédito consignado — o que desconta direto no salário, com parcela fixa.\n\nPosso conferir a sua margem e te passar os números?",
+    "Oi, {nome}!\n\nAqui é a Carol, da Velox Consig.\n\nSeu pedido de simulação para consignado CLT chegou até mim. A margem está liberada para contratação.\n\nSeguimos agora?",
 
-    "Oi, {nome}! 😊\n\nAqui quem fala é a Carol, da Velox Consig.\n\nVocê está entre os perfis com margem liberada para consignado neste mês.\n\nQuer aproveitar para ver quanto conseguiria liberar?",
+    "Olá, {nome}!\n\nCarol, da Velox Consig.\n\nA consulta de margem que você solicitou para o consignado CLT está positiva e liberada.\n\nMe confirma que eu dou continuidade.",
 
-    "{nome}, tudo bem?\n\nCarol, da Velox Consig. 👋\n\nSe você precisa de um valor com parcela que caiba no orçamento, o consignado CLT costuma resolver melhor que o cartão.\n\nPosso simular para você?",
+    "{nome}, oi!\n\nMe chamo Carol e sou da Velox Consig.\n\nSua solicitação de simulação de consignado CLT está com a margem aprovada para contratação.\n\nVamos fechar o processo?",
 
-    "Olá, {nome}!\n\nSou a Carol e represento a Velox Consig.\n\nNossa consulta indicou margem disponível no seu nome para crédito com desconto em folha.\n\nTe mando os valores e você decide com calma?",
+    "Oi, {nome}!\n\nSou a Carol, da Velox Consig.\n\nVi que você solicitou a simulação do empréstimo consignado CLT. Margem liberada no seu CPF.\n\nVamos dar continuidade à solicitação?",
 
-    "Oi, {nome}! Tudo bem? 😊\n\nCarol, da Velox Consig.\n\nO consignado para CLT libera o dinheiro na conta e desconta as parcelas direto do salário — sem risco de atraso.\n\nQuer ver a sua simulação?",
+    "Olá, {nome}!\n\nCarol aqui, consultora da Velox Consig.\n\nSua simulação de consignado CLT foi processada e a margem está liberada.\n\nPosso seguir com a contratação?",
 
-    "{nome}, oi! 👋\n\nAqui é a Carol, da Velox Consig.\n\nSua margem para crédito consignado está disponível para uso.\n\nPosso levantar as melhores condições e te apresentar por aqui?",
+    "{nome}, tudo bem?\n\nAqui é a Carol, da Velox Consig.\n\nRecebi sua solicitação de simulação para consignado CLT e sua margem está livre para contratar.\n\nVamos dar andamento?",
 
-    "Olá, {nome}!\n\nCarol falando, da Velox Consig.\n\nTrabalho com crédito consignado CLT e vi que você tem saldo de margem para contratar.\n\nQuer que eu prepare uma simulação com os prazos disponíveis?",
+    "Oi, {nome}!\n\nMe chamo Carol e trabalho na Velox Consig.\n\nSua solicitação de crédito consignado CLT está com margem liberada para contratação.\n\nMe responde aqui que eu sigo com a proposta.",
 
-    "Oi, {nome}, tudo bem? 😊\n\nMe chamo Carol, da Velox Consig.\n\nEstou entrando em contato para te apresentar uma opção de crédito com desconto em folha, liberada para o seu perfil.\n\nPosso continuar?",
+    "Olá, {nome}!\n\nCarol falando, da Velox Consig.\n\nVocê pediu uma simulação de consignado CLT e ela já está pronta: margem liberada.\n\nVamos dar continuidade?",
 
-    "{nome}, tudo certo?\n\nCarol, da Velox Consig, por aqui.\n\nSua margem de consignado está livre. Isso quer dizer que você pode contratar sem comprometer o restante do salário além do limite legal.\n\nQuer ver quanto dá?",
+    "{nome}, oi!\n\nSou a Carol, da Velox Consig.\n\nSua solicitação de simulação para empréstimo consignado CLT foi aprovada em margem.\n\nSeguimos com a contratação?",
 
-    "Olá, {nome}! 😊\n\nAqui é a Carol, da Velox Consig.\n\nConsegui verificar sua margem para crédito consignado CLT e ela está disponível.\n\nPosso te mandar o valor liberado e as opções de parcela?",
+    "Oi, {nome}!\n\nAqui é a Carol, da Velox Consig.\n\nA simulação que você solicitou está concluída e a sua margem de consignado CLT está liberada.\n\nVamos concluir a solicitação?",
 
-    "Oi, {nome}!\n\nCarol, consultora da Velox Consig. 👋\n\nSe estiver precisando de um dinheiro com parcela leve, vale olhar o consignado: desconto em folha e uma das menores taxas.\n\nSimulo para você?",
+    "Olá, {nome}!\n\nCarol, da Velox Consig.\n\nSeu pedido de simulação de consignado CLT retornou com margem disponível para contratação.\n\nMe confirma e eu dou continuidade agora.",
 
-    "{nome}, olá!\n\nSou a Carol, da Velox Consig.\n\nSeu CPF apareceu na consulta com margem liberada para contratação de crédito consignado.\n\nQuer receber a simulação agora?",
+    "{nome}, tudo certo?\n\nMe chamo Carol e falo pela Velox Consig.\n\nVi sua solicitação de consignado CLT. A margem está liberada e a contratação pode ser feita por aqui mesmo.\n\nVamos seguir?",
 
-    "Olá, {nome}! Tudo bem? 😊\n\nCarol, da Velox Consig.\n\nO crédito consignado CLT não pesa como as linhas comuns porque a parcela sai direto da folha. Muita gente usa para quitar o cartão.\n\nPosso ver o seu caso?",
+    "Oi, {nome}!\n\nSou a Carol, da Velox Consig.\n\nSua simulação de empréstimo consignado CLT foi finalizada com margem liberada.\n\nVamos dar continuidade à sua solicitação?",
 
-    "Oi, {nome}! 👋\n\nAqui é a Carol, da Velox Consig.\n\nVocê tem margem disponível para crédito consignado neste momento.\n\nSe quiser, faço a consulta completa e te apresento as condições. Pode ser?",
+    "Olá, {nome}!\n\nCarol aqui, da Velox Consig.\n\nRecebi seu pedido de simulação para consignado CLT e a margem está aprovada para contratação.\n\nConfirma para eu seguir?",
 
-    "{nome}, tudo bem? 😊\n\nCarol falando, da Velox Consig.\n\nTenho como verificar quanto você consegue liberar em consignado CLT, com as parcelas descontadas em folha.\n\nQuer que eu faça essa consulta?",
+    "{nome}, oi!\n\nAqui é a Carol, da Velox Consig.\n\nVocê solicitou a simulação do consignado CLT e o retorno veio positivo: margem liberada.\n\nVamos dar continuidade ao processo?",
 
-    "Olá, {nome}!\n\nMe chamo Carol e falo em nome da Velox Consig.\n\nIdentificamos margem ativa no seu nome para crédito consignado de trabalhador CLT.\n\nPosso te enviar os valores disponíveis?",
+    "Oi, {nome}!\n\nMe chamo Carol e sou consultora da Velox Consig.\n\nSua solicitação de simulação de consignado CLT está com a margem liberada para contratação.\n\nSeguimos com a proposta?",
 
-    "Oi, {nome}! Tudo bem com você? 😊\n\nCarol, da Velox Consig.\n\nEstou com uma consulta de margem liberada em seu nome para crédito com desconto em folha.\n\nQuer ver as opções antes que as condições mudem?"
+    "Olá, {nome}!\n\nCarol, da Velox Consig.\n\nSua simulação de empréstimo consignado CLT saiu e a margem está liberada no seu nome.\n\nVamos dar continuidade à solicitação?"
 
 ];
 
